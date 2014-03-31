@@ -1,0 +1,26 @@
+// MP3 Service by Robin Miklinski 
+//
+// v1.1
+// Added BPM detection
+//
+//v1.0.1.2
+// initialise tagFile.Tag.Performers[] if null
+//
+// v1.0.1.1
+// regex fix to remove ^- matches
+//
+// v1.0.1
+// Missing metadata now populated from filename
+// process folder on service start
+// 
+// v1.0.0.3
+// house keeping for non mp3/m4a items in subdirs
+// Add config max log size
+
+// v1.0.0.2
+// Handle .m4a extention
+// Add file ext param to regex function
+//
+// v1.0.0.1 
+// ID3 tag support
+// Remove redundant subdirs
