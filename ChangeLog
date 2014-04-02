@@ -2,13 +2,13 @@
 //
 // v1.1.0.0
 // Added BPM detection
+// Log4net optimisation
 //
 //v1.0.1.2
 // Initialise tagFile.Tag.Performers[] if null
-// Log fixes
 //
 // v1.0.1.1
-// regex fix to remove ^- matches
+// Regex fix to remove ^- matches
 //
 // v1.0.1
 // Missing metadata now populated from filename
