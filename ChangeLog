@@ -1,10 +1,11 @@
 // MP3 Service Change Log
 //
-// v1.1
+// v1.1.0.0
 // Added BPM detection
 //
 //v1.0.1.2
-// initialise tagFile.Tag.Performers[] if null
+// Initialise tagFile.Tag.Performers[] if null
+// Log fixes
 //
 // v1.0.1.1
 // regex fix to remove ^- matches
@@ -19,7 +20,7 @@
 
 // v1.0.0.2
 // Handle .m4a extention
-// Add file ext param to regex function
+// Add file extension param to regex function
 //
 // v1.0.0.1 
 // ID3 tag support
