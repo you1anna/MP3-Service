@@ -23,7 +23,7 @@ namespace mp3Service
         public string LocalPath = Config.LocalPath;
         public Int32 PollInterval = Convert.ToInt32(Config.PollInterval);
         public string IncludeShare = Config.IncludeShare;
-        public string desktopPath = Config.DesktopPath;
+        public string DesktopPath = Config.DesktopPath;
         public UInt32 bpm;
         public string fileversion = "v1.1.0.0";
 
@@ -64,17 +64,44 @@ namespace mp3Service
 
             protected override void OnStart(string[] args)
             {
+                ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
                 try
                 {
+                    if (!Directory.Exists(BasePath)) {
+                        Directory.CreateDirectory(BasePath);
+                        Log.Info("Creating... " + BasePath);
+                    }
+                    if (!Directory.Exists(LocalPath)) { 
+                        Directory.CreateDirectory(LocalPath);
+                        Log.Info("Creating... " + LocalPath);
+                    }
+                    if (!Directory.Exists(DesktopPath)) { 
+                        Directory.CreateDirectory(DesktopPath);
+                        Log.Info("Creating... " + DesktopPath);
+                    }
+
+                    if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        DirectoryInfo di = new DirectoryInfo(NetworkPath);
+                        bool networkExists = di.Exists;
+
+                            if (!networkExists) 
+                            {
+                                Directory.CreateDirectory(NetworkPath);
+                                Log.Info("Creating... " + NetworkPath);
+                            }
+                    }
+
                     RemoveDirectories(BasePath);
                     ProcessMP3();
+
                     timer = new System.Timers.Timer(PollInterval);
                     timer.AutoReset = true;
                     timer.Enabled = true;
                     timer.Elapsed += new System.Timers.ElapsedEventHandler(ProcessFolder);
                     timer.Start();
 
-                    ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
                     Log.Info("");
                     Log.Info(" -- MP3 Service started -- " + fileversion);
                     Log.Info("");
@@ -82,7 +109,7 @@ namespace mp3Service
                 }
                 catch (Exception ex)
                 {
-                    eventLog1.WriteEntry(ex.Message);
+                    Log.Error(ex.Message);
                 }
             }
             protected override void OnStop()
@@ -109,6 +136,7 @@ namespace mp3Service
         {
             ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
+            //var fileArr = Directory.GetFiles(BasePath, "*.mp3", SearchOption.AllDirectories);
             var fileArr = Directory.GetFiles(BasePath, "*.*", SearchOption.AllDirectories)
                                    .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a")).ToArray();
 
@@ -317,13 +345,13 @@ namespace mp3Service
                                 string tagFull = tagArtist + " - " + tagTitle;
                                 tagFull = regexFilename(tagFull, tempExt);
                                 fileName = tagFull;
-                                Log.Info("NEW FILENAME: " + tagFull);
+                                Log.Info("New filename: " + tagFull);
                             }
                             
                             //Publish tracks to network
                             string networkFullPath = Path.Combine(NetworkPath, fileName);
                             string localFullPath = Path.Combine(LocalPath, fileName);
-                            string desktopFullPath = Path.Combine(desktopPath, fileName);
+                            string desktopFullPath = Path.Combine(DesktopPath, fileName);
 
                             FileInfo fileInfo = new FileInfo(file);
                             if (fileInfo.Length < 40000000)
@@ -379,7 +407,7 @@ namespace mp3Service
                 if (!fileExistsOnShare)
                 {
                     File.Copy(file, networkFullPath);
-                    Log.Info("NETWORK COPY: " + file);
+                    Log.Info("Publishing to network: " + Path.GetFileName(file));
                 }
             }
             else
@@ -422,37 +450,29 @@ namespace mp3Service
                             }
                             if (Directory.GetFiles(d).Length == 0)
                             {
-                                Log.Info("REMOVING SUBDIR: " + d + "\r\n");
+                                Log.Info("Removing... " + d + "\r\n");
                                 Directory.Delete(d);
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        Log.Error("DIR REMOVE ERROR: " + ex.Message);
+                        Log.Error("Error removing folder: " + ex.Message);
                     }
                 }
         }
 }
 
 
+// Read file from the last UpdateCurrentList 
+/*private List<string> ReadCurrentList(string currentListPath)
+{
+    currentListPath = BasePath + "\\currentList.txt";
+    string[] filesRead = File.ReadAllLines(currentListPath);
+    var currentList = new List<string>(filesRead);
 
-
-        // Read file from the last UpdateCurrentList 
-        /*private List<string> ReadCurrentList(string currentListPath)
-        {
-            currentListPath = BasePath + "\\currentList.txt";
-            string[] filesRead = File.ReadAllLines(currentListPath);
-            var currentList = new List<string>(filesRead);
-
-            return currentList;
-        }*/
-
-
-
-/* Network upload
- */ 
-
+    return currentList;
+}*/
 
 
 /*DateTime lastChecked = DateTime.Now;
@@ -465,7 +485,3 @@ namespace mp3Service
         timer.Interval = 1;
      */
 //timer.Start();
-    
-
-
-        //mStreamWriter.WriteLine("mp3Service: Started at " + DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToShortTimeString() + "\n")
