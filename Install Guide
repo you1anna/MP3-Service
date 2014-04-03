@@ -1,0 +1,48 @@
+--------------------------
+MP3 SERVICE INSTALL GUIDE
+--------------------------
+
+This application runs as a Windows Service which polls a source folder for new files at specified
+intervals. The service provides the following functionality for audio files:
+
+- Populate and cleanse ID3 fields and file properties using regular expressions
+- Determine the beats per minute of the track within a given range and apply this to the ID3 tag
+- Log service actions via 'MP3ServiceLog.log' generated in the BasePath
+
+Files are processed and published to output directories; all of which are configurable 
+via mp3Service.app.config. Files under 40mb are sent to the BasePath directory and those over 40mb 
+will be treated as sets/compilations and sent to the DesktopPath directory.
+
+
+1. Download and extract the project
+
+2. Setup 'mp3Service.app.config' note: this must be done before starting the service
+
+   Open 'mp3Service.app.config' in notepad and edit the following:
+
+
+    <add key="BasePath" value="C:\input" />
+    Base directory for new files to be consumed by the service
+    
+    <add key="DesktopPath" value="c:\sets" />
+    Path to publish files over 40mb
+    
+    <add key="LocalPath" value="C:\output" />
+    Path to publish files under 40mb
+    
+    <add key="IncludeShare" value="FALSE" />
+    Files will also be published to a NetworkPath if TRUE
+    
+    <add key="NetworkPath" value="\\unc\path" />
+    Path to publish files if IncludeShare is TRUE
+    
+    <add key="PollInterval" value="40000" />
+    Folder polling interval in ms
+    
+    
+3. Ensure settings for step 2 are correct. As administrator, run 'Install Service.bat' which will
+   install and attempt to start the service.
+ 
+4. Run 'Services.msc'
+
+5. If successful the service should be running. Open <BasePath>\MP3ServiceLog.log to check status.
