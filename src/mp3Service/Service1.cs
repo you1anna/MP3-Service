@@ -109,7 +109,6 @@ namespace mp3Service
         {
             ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-            //var fileArr = Directory.GetFiles(BasePath, "*.mp3", SearchOption.AllDirectories);
             var fileArr = Directory.GetFiles(BasePath, "*.*", SearchOption.AllDirectories)
                                    .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a")).ToArray();
 
