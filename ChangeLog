@@ -3,7 +3,7 @@
 // v1.1.0.0
 // Added BPM detection
 // Log4net optimisation
-// Validate config paths
+// Validate path settings in config
 //
 //v1.0.1.2
 // Initialise tagFile.Tag.Performers[] if null
