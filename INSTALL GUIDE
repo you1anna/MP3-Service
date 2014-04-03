@@ -5,7 +5,7 @@ MP3 SERVICE INSTALL GUIDE
 This application runs as a Windows Service which polls a source folder for new files at specified
 intervals. The service provides the following functionality for audio files:
 
-- Populate and cleanse ID3 fields and file properties using regular expressions
+- Populate and cleanse ID3 fields and file properties according to rules derived from regular expressions
 - Determine the beats per minute of the track within a given range and apply this to the ID3 tag
 - Log service actions via 'MP3ServiceLog.log' generated in the BasePath
 
