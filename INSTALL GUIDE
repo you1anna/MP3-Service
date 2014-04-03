@@ -13,6 +13,7 @@ Files are processed and published to output directories; all of which are config
 via mp3Service.app.config. Files under 40mb are sent to the BasePath directory and those over 40mb 
 will be treated as sets/compilations and sent to the DesktopPath directory.
 
+Pre-req: .NET Framework 4.0
 
 1. Download and extract the project
 
