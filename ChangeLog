@@ -10,7 +10,7 @@
 // v1.0.1.1
 // Regex fix to remove ^- matches
 //
-// v1.0.1
+// v1.0.1.0
 // Missing metadata now populated from filename
 // process folder on service start
 // 
