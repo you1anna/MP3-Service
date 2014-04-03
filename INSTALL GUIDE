@@ -47,3 +47,5 @@ will be treated as sets/compilations and sent to the DesktopPath directory.
 4. Run 'Services.msc'
 
 5. If successful 'MP3 Service' should be running. Open <BasePath>\MP3ServiceLog.log to view service status.
+
+6. Files to be processed should be added to <BasePath>
