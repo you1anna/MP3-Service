@@ -11,6 +11,42 @@ using System.Diagnostics;
 [assembly: log4net.Config.XmlConfigurator(Watch = true)]
 
 // MP3 Service by Robin Miklinski
+//
+// TODO: log version id on start
+//
+// v1.1.0.1
+// Fixed null reference check on all tagFile.Tag.Performers[]
+// Clear additional fields
+//
+// v1.1.0.0
+// Added BPM detection
+// Log4net optimisation
+// Validate config paths
+//
+//v1.0.1.2
+// initialise tagFile.Tag.Performers[] if null
+//
+// v1.0.1.1
+// regex fix to remove ^- matches
+//
+// v1.0.1
+// Missing metadata now populated from filename
+// process folder on service start
+// 
+// v1.0.0.3
+// house keeping for non mp3/m4a items in subdirs
+// Add config max log size
+
+// v1.0.0.2
+// Handle .m4a extention
+// Add file extension param to regex function
+//
+// v1.0.0.1 
+// ID3 tag support
+// Remove redundant subdirs
+//
+// *logging banners
+//
 
 namespace mp3Service
 {
@@ -25,7 +61,7 @@ namespace mp3Service
         public string IncludeShare = Config.IncludeShare;
         public string DesktopPath = Config.DesktopPath;
         public UInt32 bpm;
-        public string fileversion = "v1.1.0.0";
+        public string fileversion = "v1.1.0.1";
 
         private string bugPath = "";
 
@@ -200,7 +236,7 @@ namespace mp3Service
                 info.WindowStyle = ProcessWindowStyle.Hidden;
 
                 Process process = Process.Start(info);
-          
+
                 tempRegFilename = regexFilename(tempRegFilename, ".mp3");
 
                 if (!file.Contains("INCOMPLETE~"))
@@ -257,16 +293,18 @@ namespace mp3Service
                             mp3tag.Tag.Title = String.Empty;
                         }
 
-                        if (mp3tag.Tag.Performers[0].Length < 1 || mp3tag.Tag.Performers[0] == null)
+                        if (mp3tag.Tag.Performers.Length < 1 || mp3tag.Tag.Performers == null)
                         {
-                            mp3tag.Tag.Performers[0] = null;
                             mp3tag.Tag.Performers = new[] { String.Empty };
                             mp3tag.Save();
                         }
 
-                        if (mp3tag.Tag.Performers[0].Length > 1)
+                        if (mp3tag.Tag.Performers.Length > 0)
                         {
+                            if (mp3tag.Tag.Performers != null && mp3tag.Tag.Performers[0].Length > 1)
+                            {
                                 string[] performers = mp3tag.Tag.Performers;
+
                                 if (title.Length > 2 && performers[0].Length > 1)
                                 {
                                     tagTitle = title;
@@ -275,9 +313,10 @@ namespace mp3Service
                                     Log.Info("ID3 Title: " + "[" + tagTitle + "]");
                                     Log.Info("Tag data OK");
                                 }
+                            }
                         }
                                 //Get artist from filename
-                                if (mp3tag.Tag.Performers[0].Length < 1 || mp3tag.Tag.Performers == null)
+                                if (mp3tag.Tag.Performers.Length < 1 || string.IsNullOrEmpty(mp3tag.Tag.Performers[0]))
                                 {
                                     mp3tag.Tag.Performers = new[] { String.Empty };
                                     string prevArtist = String.Empty;
@@ -290,7 +329,7 @@ namespace mp3Service
                                             words[0] = words[0].Trim();
                                             string perf = words[0];
                                             mp3tag.Tag.Performers = new[] { perf };
-                                            Log.Info("Artists changed from \'" + prevArtist + "\' to " + "'" + perf + "'" + "\r\n");
+                                            Log.Info("Artists changed from \'" + prevArtist + "\' to " + "'" + perf + "'");
                                             mp3tag.Save();
                                         }
                                     }
@@ -309,10 +348,13 @@ namespace mp3Service
                                         {
                                             string prevTitle = mp3tag.Tag.Title;
                                             mp3tag.Tag.Title = words[1].Trim();
-                                            Log.Info("Title changed from \'" + prevTitle + "\' to " + "'" + words[1].Trim() +
-                                                     "'" + "\r\n");
+                                            Log.Info("Title changed from \'" + prevTitle + "\' to " + "'" + words[1].Trim() + "'");
                                         }
                                     }
+                                    mp3tag.Tag.AlbumArtists = new[] {String.Empty};
+                                    mp3tag.Tag.Composers = new[] { String.Empty };
+                                    mp3tag.Tag.Comment = String.Empty;
+                                    mp3tag.Tag.Grouping = String.Empty;
                                     mp3tag.Save();
                                 }
                                 mp3tag.Dispose();
@@ -320,7 +362,7 @@ namespace mp3Service
 
                     catch (Exception ex)
                     {
-                        Log.Error("TAG EXCEPTION: " + ex.Message + "Data: " + "'" + ex.Data + "'" + " for " + fileName + "\r\n" + ex.HelpLink);
+                        Log.Error("TAG EXCEPTION: " + ex.Message + "Data: " + "'" + ex.StackTrace + "'" + " for " + fileName + "\r\n" + ex.HelpLink);
                     }
 
                     try
@@ -464,6 +506,8 @@ namespace mp3Service
 }
 
 
+
+
 // Read file from the last UpdateCurrentList 
 /*private List<string> ReadCurrentList(string currentListPath)
 {
@@ -485,3 +529,4 @@ namespace mp3Service
         timer.Interval = 1;
      */
 //timer.Start();
+   
