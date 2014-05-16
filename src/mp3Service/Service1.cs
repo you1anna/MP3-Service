@@ -11,42 +11,6 @@ using System.Diagnostics;
 [assembly: log4net.Config.XmlConfigurator(Watch = true)]
 
 // MP3 Service by Robin Miklinski
-//
-// TODO: log version id on start
-//
-// v1.1.0.1
-// Fixed null reference check on all tagFile.Tag.Performers[]
-// Clear additional fields
-//
-// v1.1.0.0
-// Added BPM detection
-// Log4net optimisation
-// Validate config paths
-//
-//v1.0.1.2
-// initialise tagFile.Tag.Performers[] if null
-//
-// v1.0.1.1
-// regex fix to remove ^- matches
-//
-// v1.0.1
-// Missing metadata now populated from filename
-// process folder on service start
-// 
-// v1.0.0.3
-// house keeping for non mp3/m4a items in subdirs
-// Add config max log size
-
-// v1.0.0.2
-// Handle .m4a extention
-// Add file extension param to regex function
-//
-// v1.0.0.1 
-// ID3 tag support
-// Remove redundant subdirs
-//
-// *logging banners
-//
 
 namespace mp3Service
 {
