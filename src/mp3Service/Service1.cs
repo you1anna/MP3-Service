@@ -11,6 +11,50 @@ using System.Diagnostics;
 [assembly: log4net.Config.XmlConfigurator(Watch = true)]
 
 // MP3 Service by Robin Miklinski
+// !!!BUILD DON'T REBUILD!!!
+//
+// v1.1.0.3
+// add aif / flac and don't overwrite if file exists
+// 
+// Don't use taglib if artist name ends in .
+//
+// v1.1.0.2
+// Handle wav files
+// ...
+//
+// v1.1.0.1
+// Fixed null reference check on tagFile.Tag.Performers[]
+// Clear additional metadata fields
+//
+// v1.1.0.0
+// Added BPM detection
+// Log4net optimisation
+// Validate config paths
+//
+//v1.0.1.2
+// initialise tagFile.Tag.Performers[] if null
+//
+// v1.0.1.1
+// regex fix to remove ^- matches
+//
+// v1.0.1
+// Missing metadata now populated from filename
+// process folder on service start
+// 
+// v1.0.0.3
+// house keeping for non mp3/m4a items in subdirs
+// Add config max log size
+
+// v1.0.0.2
+// Handle .m4a extention
+// Add file extension param to regex function
+//
+// v1.0.0.1 
+// ID3 tag support
+// Remove redundant subdirs
+//
+// *logging banners
+//
 
 namespace mp3Service
 {
@@ -25,7 +69,7 @@ namespace mp3Service
         public string IncludeShare = Config.IncludeShare;
         public string DesktopPath = Config.DesktopPath;
         public UInt32 bpm;
-        public string fileversion = "v1.1.0.1";
+        public string fileversion = "v1.1.0.4";
 
         private string bugPath = "";
 
@@ -136,9 +180,10 @@ namespace mp3Service
         {
             ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-            //var fileArr = Directory.GetFiles(BasePath, "*.mp3", SearchOption.AllDirectories);
+
             var fileArr = Directory.GetFiles(BasePath, "*.*", SearchOption.AllDirectories)
-                                   .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a")).ToArray();
+                                   .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a") || s.ToLower().EndsWith(".wav")
+                                       || s.ToLower().EndsWith(".aif") || s.ToLower().EndsWith(".flac")).ToArray();
 
             string copiedFileList = BasePath + "\\" + _copiedFileList;
 
@@ -289,6 +334,10 @@ namespace mp3Service
                                     {
                                         Log.Info("Artist data missing...");
                                         string[] words = tempRegFilename.Split('-');
+                                        //Title
+                                        string lastWord = words.Last();
+                                        //Artist?
+
                                         {
                                             words[0] = words[0].Trim();
                                             string perf = words[0];
@@ -335,57 +384,79 @@ namespace mp3Service
                         {
                             string tempExt = "";
 
-                            if (file.Contains(".mp3"))
+                            if (file.ToLower().Contains(".mp3"))
                             {
                                 tempExt = ".mp3";
                                 fileName = regexFilename(fileName, tempExt);
                             }
-                            if (file.Contains(".m4a"))
+                            if (file.ToLower().Contains(".m4a"))
                             {
                                 tempExt = ".m4a";
                                 fileName = regexFilename(fileName, tempExt);
                             }
+                            if (file.ToLower().Contains(".wav"))
+                            {
+                                tempExt = ".wav";
+                                fileName = regexFilename(fileName, tempExt);
+                            }
+                            if (file.ToLower().Contains(".aif"))
+                            {
+                                tempExt = ".aif";
+                                fileName = regexFilename(fileName, tempExt);
+                            }
+                            if (file.ToLower().Contains(".flac"))
+                            {
+                                tempExt = ".flac";
+                                fileName = regexFilename(fileName, tempExt);
+                            }
 
                             if (tagArtist.Length > 2 && tagTitle.Length > 2)
-                            {
-                                string tagFull = tagArtist + " - " + tagTitle;
-                                tagFull = regexFilename(tagFull, tempExt);
-                                fileName = tagFull;
-                                Log.Info("New filename: " + tagFull);
-                            }
+                                if (!tagArtist.Contains(@"."))
+                                {
+                                    string tagFull = tagArtist + " - " + tagTitle;
+                                    tagFull = regexFilename(tagFull, tempExt);
+                                    fileName = tagFull;
+                                    Log.Info("New filename: " + tagFull);
+                                }
+                                else
+                                {
+                                    Log.Info("Using original filename as Artist tag contains '.'");
+                                }
                             
-                            //Publish tracks to network
                             string networkFullPath = Path.Combine(NetworkPath, fileName);
                             string localFullPath = Path.Combine(LocalPath, fileName);
                             string desktopFullPath = Path.Combine(DesktopPath, fileName);
 
                             FileInfo fileInfo = new FileInfo(file);
-                            if (fileInfo.Length < 40000000)
+                            if (!File.Exists(localFullPath))
                             {
-                                if (!File.Exists(localFullPath))
+                                try
                                 {
-                                    File.Copy(file, localFullPath, true);
+                                    File.Copy(file, localFullPath);
+                                    Log.Info("Copying file: " + file + " to " + localFullPath);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Warn(ex.Message);
+                                    Log.Warn("File already exists: " + file);
+                                }
+                            } 
+                            else 
+                            {
+                                fileName = fileName + "_1";
+                                Log.Warn("Copying temp file: " + fileName);
+                                var localFullPath2 = Path.Combine(LocalPath, fileName);
+                                File.Copy(file, localFullPath2);
+                            }
+
+                                if (File.Exists(localFullPath))
+                                {
+                                    File.Delete(file);
                                 }
 
-                                if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
-                                {
-                                    copyShare(file, networkFullPath);
-                                }
-                            }
-                            //Publish sets to desktop
-                            if (fileInfo.Length > 40000000)
+                            if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
                             {
-                                bugPath = desktopFullPath;
-                                Log.Info("Publishing set: " + file + " desktopFullPath: " + desktopFullPath);
-                                File.Copy(file, desktopFullPath, true);
-                            }
-                            if (File.Exists(desktopFullPath))
-                            {
-                                File.Delete(file);
-                            }
-                            else if (File.Exists(localFullPath))
-                            {
-                                File.Delete(file);
+                                copyShare(file, networkFullPath);
                             }
                         }
                     }

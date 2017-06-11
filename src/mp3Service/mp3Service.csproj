@@ -116,6 +116,7 @@
     <None Include="Application.config" />
     <None Include="policy.2.0.taglib-sharp.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <SubType>Designer</SubType>
     </None>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
