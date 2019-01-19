@@ -6,7 +6,7 @@ namespace mp3Service
     public static class Config
     {
         public static string BasePath
-        {
+        { 
             get { return ConfigurationManager.AppSettings[@"BasePath"]; }
         }
         public static string NetworkPath

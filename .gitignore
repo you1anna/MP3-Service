@@ -4,3 +4,6 @@ src/mp3Service/obj/
 src/.vs/
 *.log
 *.suo
+mp3Service2/mp3Service2/bin/
+mp3Service2/mp3Service2/obj/
+mp3Service2/packages/

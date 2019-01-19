@@ -7,58 +7,13 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using log4net;
 using System.Diagnostics;
+using mp3Service;
 
-[assembly: log4net.Config.XmlConfigurator(Watch = true)]
+[assembly: log4net.Config.XmlConfigurator(ConfigFile = "Log4Net.config", Watch = true)]
 
-// MP3 Service by Robin Miklinski
-// !!!BUILD DON'T REBUILD!!!
-//
-// v1.1.0.3
-// add aif / flac and don't overwrite if file exists
-// 
-// Don't use taglib if artist name ends in .
-//
-// v1.1.0.2
-// Handle wav files
-// ...
-//
-// v1.1.0.1
-// Fixed null reference check on tagFile.Tag.Performers[]
-// Clear additional metadata fielsd         
-//
-// v1.1.0.0
-// Added BPM detection
-// Log4net optimisation
-// Validate config paths
-//
-//v1.0.1.2
-// initialise tagFile.Tag.Performers[] if null
-//
-// v1.0.1.1
-// regex fix to remove ^- matches
-//
-// v1.0.1
-// Missing metadata now populated from filename
-// process folder on service start
-// 
-// v1.0.0.3
-// house keeping for non mp3/m4a items in subdirs
-// Add config max log size
-
-// v1.0.0.2
-// Handle .m4a extention
-// Add file extension param to regex function
-//
-// v1.0.0.1 
-// ID3 tag support
-// Remove redundant subdirs
-//
-// *logging banners
-//
-
-namespace mp3Service
+namespace mp3Service2
 {
-    public partial class Service1 : ServiceBase
+    public partial class mp3Service2 : ServiceBase
     {
         private System.Timers.Timer timer;
 
@@ -89,90 +44,93 @@ namespace mp3Service
         //Replace strings
         string RegexReplace1 = " - ";
         string RegexReplace2 = " ";
-        string RegexReplace4 = "";
+        string RegexReplace4 = "";      
         string RegexReplace5 = "";
         string RegexReplace6 = ".";
         string RegexReplace7 = "";
 
 
-        public Service1()
+        public mp3Service2()
         {
-                log4net.Config.XmlConfigurator.Configure();
-            }
+            log4net.Config.XmlConfigurator.Configure();
+        }
 
-            protected override void OnStart(string[] args)
+        protected override void OnStart(string[] args)
+        {
+            ILog Log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
+            try
             {
-                ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-
-                try
+                if (!Directory.Exists(BasePath))
                 {
-                    if (!Directory.Exists(BasePath)) {
-                        Directory.CreateDirectory(BasePath);
-                        Log.Info("Creating... " + BasePath);
-                    }
-                    if (!Directory.Exists(LocalPath)) { 
-                        Directory.CreateDirectory(LocalPath);
-                        Log.Info("Creating... " + LocalPath);
-                    }
-                    if (!Directory.Exists(DesktopPath)) { 
-                        Directory.CreateDirectory(DesktopPath);
-                        Log.Info("Creating... " + DesktopPath);
-                    }
+                    Directory.CreateDirectory(BasePath);
+                    Log.Info("Creating... " + BasePath);
+                }
+                if (!Directory.Exists(LocalPath))
+                {
+                    Directory.CreateDirectory(LocalPath);
+                    Log.Info("Creating... " + LocalPath);
+                }
+                if (!Directory.Exists(DesktopPath))
+                {
+                    Directory.CreateDirectory(DesktopPath);
+                    Log.Info("Creating... " + DesktopPath);
+                }
 
-                    if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
+                if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    DirectoryInfo di = new DirectoryInfo(NetworkPath);
+                    bool networkExists = di.Exists;
+
+                    if (!networkExists)
                     {
-                        DirectoryInfo di = new DirectoryInfo(NetworkPath);
-                        bool networkExists = di.Exists;
-
-                            if (!networkExists) 
-                            {
-                                Directory.CreateDirectory(NetworkPath);
-                                Log.Info("Creating... " + NetworkPath);
-                            }
+                        Directory.CreateDirectory(NetworkPath);
+                        Log.Info("Creating... " + NetworkPath);
                     }
-
-                    RemoveDirectories(BasePath);
-                    ProcessMP3();
-
-                    timer = new System.Timers.Timer(PollInterval);
-                    timer.AutoReset = true;
-                    timer.Enabled = true;
-                    timer.Elapsed += new System.Timers.ElapsedEventHandler(ProcessFolder);
-                    timer.Start();
-
-                    Log.Info("");
-                    Log.Info(" -- MP3 Service started -- " + fileversion);
-                    Log.Info("");
                 }
-                catch (Exception ex)
-                {
-                    Log.Error(ex.Message);
-                }
-            }
 
-            //Handle null performers array
-            public static string[] InitPerformers(string[] value)
-            {
-                if (value == null)
-                {
-                    return new[] { String.Empty };
-                }
-                return value;
-            }
-        private void ProcessFolder(object sender, System.Timers.ElapsedEventArgs e)
-            {
                 RemoveDirectories(BasePath);
                 ProcessMP3();
+
+                timer = new System.Timers.Timer(PollInterval);
+                timer.AutoReset = true;
+                timer.Enabled = true;
+                timer.Elapsed += new System.Timers.ElapsedEventHandler(ProcessFolder);
+                timer.Start();
+
+                Log.Info("");
+                Log.Info(" -- MP3 Service started -- " + fileversion);
+                Log.Info("");
             }
+            catch (Exception ex)
+            {
+                Log.Error(ex.Message);
+            }
+        }
+
+        //Handle null performers array
+        public static string[] InitPerformers(string[] value)
+        {
+            if (value == null)
+            {
+                return new[] { String.Empty };
+            }
+            return value;
+        }
+        private void ProcessFolder(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            RemoveDirectories(BasePath);
+            ProcessMP3();
+        }
 
         private void ProcessMP3()
         {
-            ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+            ILog Log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
 
             var fileArr = Directory.GetFiles(BasePath, "*.*", SearchOption.AllDirectories)
                                    .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a") || s.ToLower().EndsWith(".wav")
-                                       || s.ToLower().EndsWith(".aif") || s.ToLower().EndsWith(".flac")).ToArray();
+                                       || s.ToLower().EndsWith(".aif") || s.ToLower().EndsWith(".aiff") || s.ToLower().EndsWith(".flac")).ToArray();
 
             string copiedFileList = BasePath + "\\" + _copiedFileList;
 
@@ -222,18 +180,7 @@ namespace mp3Service
                 string tagTitle = "";
                 string tempRegFilename = fileName;
                 string title = "";
-
-                //Consolebpm config
-                ProcessStartInfo info = new ProcessStartInfo("consolebpm.exe");
-                info.UseShellExecute = false;
-                info.RedirectStandardError = true;
-                info.RedirectStandardInput = true;
-                info.RedirectStandardOutput = true;
-                info.CreateNoWindow = true;
-                info.ErrorDialog = false;
-                info.WindowStyle = ProcessWindowStyle.Hidden;
-
-                Process process = Process.Start(info);
+                Process consoleBpmProcess = getProcessInfo("consolebpm.exe");
 
                 tempRegFilename = regexFilename(tempRegFilename, ".mp3");
 
@@ -248,12 +195,12 @@ namespace mp3Service
                         //Get BPM
                         string bpmVal;
 
-                        process.StartInfo.Arguments = "\"" + file + "\"";
-                        process.Start();
-                        bpmVal = process.StandardOutput.ReadLine();
-                        process.WaitForExit();
+                        consoleBpmProcess.StartInfo.Arguments = "\"" + file + "\"";
+                        consoleBpmProcess.Start();
+                        bpmVal = consoleBpmProcess.StandardOutput.ReadLine();
+                        consoleBpmProcess.WaitForExit();
                         Log.Info("BPM Detected: " + bpmVal);
-                    
+
                         //Apply to tag
                         TagLib.File mp3tag = TagLib.File.Create(file);
 
@@ -276,7 +223,7 @@ namespace mp3Service
                             Log.Info("Tag BPM missing...");
                             double d = Convert.ToDouble(bpmVal);
                             int i = (int)Math.Round(d, 0);
-                            UInt32 newBpm = Convert.ToUInt32(i);
+                            uint newBpm = Convert.ToUInt32(i);
                             mp3tag.Tag.BeatsPerMinute = newBpm;
                             Log.Info("Setting new BPM: " + "[" + mp3tag.Tag.BeatsPerMinute.ToString() + "]");
                             mp3tag.Save();
@@ -285,7 +232,7 @@ namespace mp3Service
                         if (mp3tag.Tag.Title != null && mp3tag.Tag.Title.Length > 1)
                         {
                             title = mp3tag.Tag.Title;
-                        } 
+                        }
                         else
                         {
                             mp3tag.Tag.Title = String.Empty;
@@ -293,7 +240,7 @@ namespace mp3Service
 
                         if (mp3tag.Tag.Performers.Length < 1 || mp3tag.Tag.Performers == null)
                         {
-                            mp3tag.Tag.Performers = new[] { String.Empty };
+                            mp3tag.Tag.Performers = new[] { string.Empty };
                             mp3tag.Save();
                         }
 
@@ -313,54 +260,54 @@ namespace mp3Service
                                 }
                             }
                         }
-                                //Get artist from filename
-                                if (mp3tag.Tag.Performers.Length < 1 || string.IsNullOrEmpty(mp3tag.Tag.Performers[0]))
+                        //Get artist from filename
+                        if (mp3tag.Tag.Performers.Length < 1 || string.IsNullOrEmpty(mp3tag.Tag.Performers[0]))
+                        {
+                            mp3tag.Tag.Performers = new[] { String.Empty };
+                            string prevArtist = string.Empty;
+
+                            if (tempRegFilename.Contains("-"))
+                            {
+                                Log.Info("Artist data missing...");
+                                string[] words = tempRegFilename.Split('-');
+                                //Title
+                                string lastWord = words.Last();
+                                //Artist?
+
                                 {
-                                    mp3tag.Tag.Performers = new[] { String.Empty };
-                                    string prevArtist = String.Empty;
-
-                                    if (tempRegFilename.Contains("-"))
-                                    {
-                                        Log.Info("Artist data missing...");
-                                        string[] words = tempRegFilename.Split('-');
-                                        //Title
-                                        string lastWord = words.Last();
-                                        //Artist?
-
-                                        {
-                                            words[0] = words[0].Trim();
-                                            string perf = words[0];
-                                            mp3tag.Tag.Performers = new[] { perf };
-                                            Log.Info("Artists changed from \'" + prevArtist + "\' to " + "'" + perf + "'");
-                                            mp3tag.Save();
-                                        }
-                                    }
+                                    words[0] = words[0].Trim();
+                                    string perf = words[0];
+                                    mp3tag.Tag.Performers = new[] { perf };
+                                    Log.Info("Artists changed from \'" + prevArtist + "\' to " + "'" + perf + "'");
                                     mp3tag.Save();
                                 }
-
-                                // Get title from filename
-                                if (mp3tag.Tag.Title == null || title.Length < 2)
-                                {
-                                    mp3tag.Tag.Title = "";
-
-                                    if (tempRegFilename.Contains("-"))
-                                    {
-                                        Log.Info("Title data missing...");
-                                        string[] words = tempRegFilename.Split('-');
-                                        {
-                                            string prevTitle = mp3tag.Tag.Title;
-                                            mp3tag.Tag.Title = words[1].Trim();
-                                            Log.Info("Title changed from \'" + prevTitle + "\' to " + "'" + words[1].Trim() + "'");
-                                        }
-                                    }
-                                    mp3tag.Tag.AlbumArtists = new[] {String.Empty};
-                                    mp3tag.Tag.Composers = new[] { String.Empty };
-                                    mp3tag.Tag.Comment = String.Empty;
-                                    mp3tag.Tag.Grouping = String.Empty;
-                                    mp3tag.Save();
-                                }
-                                mp3tag.Dispose();
+                            }
+                            mp3tag.Save();
                         }
+
+                        // Get title from filename
+                        if (mp3tag.Tag.Title == null || title.Length < 2)
+                        {
+                            mp3tag.Tag.Title = "";
+
+                            if (tempRegFilename.Contains("-"))
+                            {
+                                Log.Info("Title data missing...");
+                                string[] words = tempRegFilename.Split('-');
+                                {
+                                    string prevTitle = mp3tag.Tag.Title;
+                                    mp3tag.Tag.Title = words[1].Trim();
+                                    Log.Info("Title changed from \'" + prevTitle + "\' to " + "'" + words[1].Trim() + "'");
+                                }
+                            }
+                            mp3tag.Tag.AlbumArtists = new[] { string.Empty };
+                            mp3tag.Tag.Composers = new[] { string.Empty };
+                            mp3tag.Tag.Comment = string.Empty;
+                            mp3tag.Tag.Grouping = string.Empty;
+                            mp3tag.Save();
+                        }
+                        mp3tag.Dispose();
+                    }
 
                     catch (Exception ex)
                     {
@@ -393,6 +340,11 @@ namespace mp3Service
                                 tempExt = ".aif";
                                 fileName = regexFilename(fileName, tempExt);
                             }
+                            if (file.ToLower().Contains(".aiff"))
+                            {
+                                tempExt = ".aiff";
+                                fileName = regexFilename(fileName, tempExt);
+                            }
                             if (file.ToLower().Contains(".flac"))
                             {
                                 tempExt = ".flac";
@@ -411,7 +363,16 @@ namespace mp3Service
                                 {
                                     Log.Info("Using original filename as Artist tag contains '.'");
                                 }
-                            
+
+                            if (file.ToLower().Contains(".flac"))
+                            {
+                                Process flac = getProcessInfo("D:\\soulseek\\flac.exe");
+                                flac.Start();
+                                string output = consoleBpmProcess.StandardOutput.ReadLine();
+                                Log.Info("Flac process: " + output);
+                                flac.WaitForExit();
+                            }
+
                             string networkFullPath = Path.Combine(NetworkPath, fileName);
                             string localFullPath = Path.Combine(LocalPath, fileName);
                             string desktopFullPath = Path.Combine(DesktopPath, fileName);
@@ -429,8 +390,8 @@ namespace mp3Service
                                     Log.Warn(ex.Message);
                                     Log.Warn("File already exists: " + file);
                                 }
-                            } 
-                            else 
+                            }
+                            else
                             {
                                 fileName = fileName + "_1";
                                 Log.Warn("Copying temp file: " + fileName);
@@ -438,10 +399,10 @@ namespace mp3Service
                                 File.Copy(file, localFullPath2);
                             }
 
-                                if (File.Exists(localFullPath))
-                                {
-                                    File.Delete(file);
-                                }
+                            if (File.Exists(localFullPath))
+                            {
+                                File.Delete(file);
+                            }
 
                             if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
                             {
@@ -458,9 +419,24 @@ namespace mp3Service
             }
         }
 
+        private static Process getProcessInfo(string processName)
+        {
+            ProcessStartInfo info = new ProcessStartInfo(processName);
+            info.UseShellExecute = false;
+            info.RedirectStandardError = true;
+            info.RedirectStandardInput = true;
+            info.RedirectStandardOutput = true;
+            info.CreateNoWindow = true;
+            info.ErrorDialog = false;
+            info.WindowStyle = ProcessWindowStyle.Hidden;
+
+            Process process = Process.Start(info);
+            return process;
+        }
+
         public void copyShare(string file, string networkFullPath)
         {
-            ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+            ILog Log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
             DirectoryInfo di = new DirectoryInfo(NetworkPath);
             bool networkExists = di.Exists;
@@ -484,49 +460,49 @@ namespace mp3Service
 
         //Apply file extention
         private string regexFilename(string fileName, string extention)
+        {
+            fileName = Regex.Replace(fileName, RegexPattern1, RegexReplace1);
+            fileName = Regex.Replace(fileName, RegexPattern2, RegexReplace2);
+            fileName = Regex.Replace(fileName, RegexPattern4, RegexReplace4);
+            fileName = Regex.Replace(fileName, RegexPattern5, RegexReplace5);
+            fileName = Regex.Replace(fileName, RegexPattern6, RegexReplace6);
+            fileName = Regex.Replace(fileName, RegexPattern7, RegexReplace7);
+
+            fileName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(fileName));
+            fileName = fileName + extention;
+
+            return fileName;
+        }
+
+        //Remove redundant subdirs
+        private void RemoveDirectories(string test1)
+        {
+            ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
+            try
             {
-                fileName = Regex.Replace(fileName, RegexPattern1, RegexReplace1);
-                fileName = Regex.Replace(fileName, RegexPattern2, RegexReplace2);
-                fileName = Regex.Replace(fileName, RegexPattern4, RegexReplace4);
-                fileName = Regex.Replace(fileName, RegexPattern5, RegexReplace5);
-                fileName = Regex.Replace(fileName, RegexPattern6, RegexReplace6);
-                fileName = Regex.Replace(fileName, RegexPattern7, RegexReplace7);
+                foreach (var d in Directory.GetDirectories(test1))
+                {
+                    var files = Directory.GetFiles(d)
+                               .Where(name => (!name.StartsWith("INCOMPLETE~") && !name.EndsWith(".mp3") && !name.EndsWith(".m4a") && !name.EndsWith(".txt")));
 
-                fileName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(fileName));
-                fileName = fileName + extention;
-
-                return fileName;
-            }
-
-            //Remove redundant subdirs
-            private void RemoveDirectories(string test1)
-            {
-                ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-          
-                    try
-                    {                 
-                        foreach (var d in Directory.GetDirectories(test1))
-                        {
-                            var files = Directory.GetFiles(d)
-                                       .Where(name => (!name.StartsWith("INCOMPLETE~") && !name.EndsWith(".mp3") && !name.EndsWith(".m4a") && !name.EndsWith(".txt")));
-                        
-                            foreach (var file in files)
-                            {
-                                File.Delete(file);
-                            }
-                            if (Directory.GetFiles(d).Length == 0)
-                            {
-                                Log.Info("Removing... " + d + "\r\n");
-                                Directory.Delete(d);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
+                    foreach (var file in files)
                     {
-                        Log.Error("Error removing folder: " + ex.Message);
+                        File.Delete(file);
+                    }
+                    if (Directory.GetFiles(d).Length == 0)
+                    {
+                        Log.Info("Removing... " + d + "\r\n");
+                        Directory.Delete(d);
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Error removing folder: " + ex.Message);
+            }
         }
+    }
 }
 
 
@@ -553,4 +529,3 @@ namespace mp3Service
         timer.Interval = 1;
      */
 //timer.Start();
-   
