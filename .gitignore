@@ -1,0 +1,6 @@
+src/mp3Service/bin/
+src/mp3Service/packages/
+src/mp3Service/obj/
+src/.vs/
+*.log
+*.suo

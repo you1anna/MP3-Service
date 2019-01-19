@@ -24,7 +24,7 @@ using System.Diagnostics;
 //
 // v1.1.0.1
 // Fixed null reference check on tagFile.Tag.Performers[]
-// Clear additional metadata fields
+// Clear additional metadata fielsd         
 //
 // v1.1.0.0
 // Added BPM detection
@@ -97,13 +97,7 @@ namespace mp3Service
 
         public Service1()
         {
-                InitializeComponent();
                 log4net.Config.XmlConfigurator.Configure();
-
-                if (!System.Diagnostics.EventLog.SourceExists("MySource"))
-                    System.Diagnostics.EventLog.CreateEventSource("MySource", "MyNewLog");
-                eventLog1.Source = "MySource";
-                eventLog1.Log = "MyNewLog";
             }
 
             protected override void OnStart(string[] args)
@@ -149,16 +143,11 @@ namespace mp3Service
                     Log.Info("");
                     Log.Info(" -- MP3 Service started -- " + fileversion);
                     Log.Info("");
-                    eventLog1.WriteEntry("MP3Service Started");
                 }
                 catch (Exception ex)
                 {
                     Log.Error(ex.Message);
                 }
-            }
-            protected override void OnStop()
-            {
-                eventLog1.WriteEntry("MP3Service stopped");
             }
 
             //Handle null performers array
@@ -221,7 +210,7 @@ namespace mp3Service
             }
             catch (Exception ex)
             {
-                eventLog1.WriteEntry(string.Format("GetFiles error: {0}", ex.Message));
+                Log.Error(string.Format("GetFiles error: {0}", ex.Message));
             }
 
             #endregion
