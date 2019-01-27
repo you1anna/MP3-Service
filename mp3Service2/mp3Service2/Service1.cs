@@ -8,6 +8,7 @@ using System.Globalization;
 using log4net;
 using System.Diagnostics;
 using mp3Service;
+using System.Threading;
 
 [assembly: log4net.Config.XmlConfigurator(ConfigFile = "Log4Net.config", Watch = true)]
 
@@ -180,7 +181,8 @@ namespace mp3Service2
                 string tagTitle = "";
                 string tempRegFilename = fileName;
                 string title = "";
-                Process consoleBpmProcess = getProcessInfo("consolebpm.exe");
+                ProcessStartInfo consoleBpmProcessInfo = getProcessInfo("consolebpm.exe");
+                Process consoleBpmProcess = new Process();
 
                 tempRegFilename = regexFilename(tempRegFilename, ".mp3");
 
@@ -204,29 +206,32 @@ namespace mp3Service2
                         //Apply to tag
                         TagLib.File mp3tag = TagLib.File.Create(file);
 
-                        if (mp3tag.Tag.BeatsPerMinute.ToString().Length > 1)
+                        if (fileName.ToLower().Contains(".wav") || fileName.ToLower().Contains(".mp3"))
                         {
-                            if (mp3tag.Tag.BeatsPerMinute > 65 && mp3tag.Tag.BeatsPerMinute < 135)
+                            if (mp3tag.Tag.BeatsPerMinute.ToString().Length > 1)
                             {
-                                bpm = mp3tag.Tag.BeatsPerMinute;
-                                Log.Info("ID3 BPM: " + bpm);
-                                Log.Info("Tag BPM OK");
+                                if (mp3tag.Tag.BeatsPerMinute > 65 && mp3tag.Tag.BeatsPerMinute < 135)
+                                {
+                                    bpm = mp3tag.Tag.BeatsPerMinute;
+                                    Log.Info("ID3 BPM: " + bpm);
+                                    Log.Info("Tag BPM OK");
+                                }
+                                else
+                                {
+                                    Log.Warn("Tag BPM out of range");
+                                }
                             }
                             else
                             {
-                                Log.Warn("Tag BPM out of range");
-                            }
-                        }
-                        else
-                        {
-                            //Cast to UInt and set tag
-                            Log.Info("Tag BPM missing...");
-                            double d = Convert.ToDouble(bpmVal);
-                            int i = (int)Math.Round(d, 0);
-                            uint newBpm = Convert.ToUInt32(i);
-                            mp3tag.Tag.BeatsPerMinute = newBpm;
-                            Log.Info("Setting new BPM: " + "[" + mp3tag.Tag.BeatsPerMinute.ToString() + "]");
-                            mp3tag.Save();
+                                //Cast to UInt and set tag
+                                Log.Info("Tag BPM missing...");
+                                double d = Convert.ToDouble(bpmVal);
+                                int i = (int)Math.Round(d, 0);
+                                uint newBpm = Convert.ToUInt32(i);
+                                mp3tag.Tag.BeatsPerMinute = newBpm;
+                                Log.Info("Setting new BPM: " + "[" + mp3tag.Tag.BeatsPerMinute.ToString() + "]");
+                                mp3tag.Save();
+                            } 
                         }
 
                         if (mp3tag.Tag.Title != null && mp3tag.Tag.Title.Length > 1)
@@ -366,11 +371,28 @@ namespace mp3Service2
 
                             if (file.ToLower().Contains(".flac"))
                             {
-                                Process flac = getProcessInfo("D:\\soulseek\\flac.exe");
-                                flac.Start();
-                                string output = consoleBpmProcess.StandardOutput.ReadLine();
-                                Log.Info("Flac process: " + output);
-                                flac.WaitForExit();
+                                try
+                                {
+                                    ProcessStartInfo flacStartInfo = getProcessInfo(Config.FlacPath);
+                                    Log.Info("Starting FLAC...");
+                                    flacStartInfo.FileName = @"powershell.exe";
+                                    Process flac = new Process();
+                                    flacStartInfo.RedirectStandardOutput = true;
+                                    //flacStartInfo.Arguments = "flac.exe -d " + "'" + file + "'";
+                                    flacStartInfo.Arguments = "flac.bat";
+                                    Log.Info(flacStartInfo.Arguments);
+                                    Process.Start(flacStartInfo);
+                                    StreamReader stdOut = flac.StandardOutput;
+                                    flac.WaitForExit();
+                                    while (!stdOut.EndOfStream)
+                                        Log.Info(stdOut.ReadLine());
+                                    Log.Info("Flac process: " + flac.StandardOutput.ReadLine());
+                                    Log.Info("finished flac");
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Error(e.Message);
+                                }
                             }
 
                             string networkFullPath = Path.Combine(NetworkPath, fileName);
@@ -402,15 +424,15 @@ namespace mp3Service2
                             if (File.Exists(localFullPath))
                             {
                                 File.Delete(file);
+                                Log.Info("Deleting... " + file);
                             }
-
                             if (IncludeShare.Equals("true", StringComparison.InvariantCultureIgnoreCase))
                             {
                                 copyShare(file, networkFullPath);
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception ex)    
                     {
                         Log.Error(string.Format("Replace copy error: {0}",
                                                 ex.Message + "\r\n" + "DesktopPath: " + bugPath + "\r\n"));
@@ -419,7 +441,7 @@ namespace mp3Service2
             }
         }
 
-        private static Process getProcessInfo(string processName)
+        private static ProcessStartInfo getProcessInfo(string processName)
         {
             ProcessStartInfo info = new ProcessStartInfo(processName);
             info.UseShellExecute = false;
@@ -427,11 +449,10 @@ namespace mp3Service2
             info.RedirectStandardInput = true;
             info.RedirectStandardOutput = true;
             info.CreateNoWindow = true;
-            info.ErrorDialog = false;
+            info.ErrorDialog = true;
             info.WindowStyle = ProcessWindowStyle.Hidden;
 
-            Process process = Process.Start(info);
-            return process;
+            return info;
         }
 
         public void copyShare(string file, string networkFullPath)

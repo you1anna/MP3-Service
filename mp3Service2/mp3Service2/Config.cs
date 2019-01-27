@@ -5,6 +5,11 @@ namespace mp3Service
 {
     public static class Config
     {
+        public static string FlacPath
+        {
+            get { return ConfigurationManager.AppSettings[@"FlacPath"]; }
+        }
+
         public static string BasePath
         { 
             get { return ConfigurationManager.AppSettings[@"BasePath"]; }
