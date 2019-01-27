@@ -56,6 +56,11 @@ namespace mp3Service2
             log4net.Config.XmlConfigurator.Configure();
         }
 
+        internal void onDebug()
+        {
+            OnStart(null);
+        }
+
         protected override void OnStart(string[] args)
         {
             ILog Log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -369,31 +374,30 @@ namespace mp3Service2
                                     Log.Info("Using original filename as Artist tag contains '.'");
                                 }
 
-                            if (file.ToLower().Contains(".flac"))
-                            {
-                                try
-                                {
-                                    ProcessStartInfo flacStartInfo = getProcessInfo(Config.FlacPath);
-                                    Log.Info("Starting FLAC...");
-                                    flacStartInfo.FileName = @"powershell.exe";
-                                    Process flac = new Process();
-                                    flacStartInfo.RedirectStandardOutput = true;
-                                    //flacStartInfo.Arguments = "flac.exe -d " + "'" + file + "'";
-                                    flacStartInfo.Arguments = "flac.bat";
-                                    Log.Info(flacStartInfo.Arguments);
-                                    Process.Start(flacStartInfo);
-                                    StreamReader stdOut = flac.StandardOutput;
-                                    flac.WaitForExit();
-                                    while (!stdOut.EndOfStream)
-                                        Log.Info(stdOut.ReadLine());
-                                    Log.Info("Flac process: " + flac.StandardOutput.ReadLine());
-                                    Log.Info("finished flac");
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Error(e.Message);
-                                }
-                            }
+                            //if (file.ToLower().Contains(".flac"))
+                            //{
+                            //    try
+                            //    {
+                            //        ProcessStartInfo flacStartInfo = getProcessInfo(Config.FlacPath);
+                            //        Log.Info("Starting FLAC...");
+                            //        flacStartInfo.FileName = @"powershell.exe";
+                            //        Process flac = new Process();
+                            //        flacStartInfo.RedirectStandardOutput = true;
+                            //        flacStartInfo.Arguments = "flac.bat";
+                            //        flacStartInfo.WorkingDirectory = @"c:\soulseek\";
+                            //        var x = Process.Start(flacStartInfo);
+                            //        StreamReader stdOut = flac.StandardOutput;
+                            //        flac.WaitForExit();
+                            //        while (!stdOut.EndOfStream)
+                            //            Log.Info(stdOut.ReadLine());
+                            //        Log.Info("Flac process: " + flac.StandardOutput.ReadLine());
+                            //        Log.Info("finished flac");
+                            //    }
+                            //    catch (Exception e)
+                            //    {
+                            //        Log.Error(e.Message);
+                            //    }
+                            //}
 
                             string networkFullPath = Path.Combine(NetworkPath, fileName);
                             string localFullPath = Path.Combine(LocalPath, fileName);
@@ -523,6 +527,8 @@ namespace mp3Service2
                 Log.Error("Error removing folder: " + ex.Message);
             }
         }
+
+
     }
 }
 
