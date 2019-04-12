@@ -45,7 +45,7 @@ namespace mp3Service2
         //Replace strings
         string RegexReplace1 = " - ";
         string RegexReplace2 = " ";
-        string RegexReplace4 = "";      
+        string RegexReplace4 = "";
         string RegexReplace5 = "";
         string RegexReplace6 = ".";
         string RegexReplace7 = "";
@@ -172,12 +172,14 @@ namespace mp3Service2
                 mStreamWriter.Flush();
                 mStreamWriter.Close();
             }
+
             catch (Exception ex)
             {
                 Log.Error(string.Format("GetFiles error: {0}", ex.Message));
             }
 
             #endregion
+
 
             foreach (var file in fileArr)
             {
@@ -197,6 +199,8 @@ namespace mp3Service2
                     Log.Info("---------------------------------------------------------------");
                     Log.Info("PROCESSING: " + fileName);
 
+                    TagLib.File mp3tag = TagLib.File.Create(file);
+
                     try
                     {
                         //Get BPM
@@ -209,9 +213,8 @@ namespace mp3Service2
                         Log.Info("BPM Detected: " + bpmVal);
 
                         //Apply to tag
-                        TagLib.File mp3tag = TagLib.File.Create(file);
 
-                        if (fileName.ToLower().Contains(".wav") || fileName.ToLower().Contains(".mp3"))
+                        if (fileName.ToLower().Contains(".mp3"))
                         {
                             if (mp3tag.Tag.BeatsPerMinute.ToString().Length > 1)
                             {
@@ -231,14 +234,20 @@ namespace mp3Service2
                                 //Cast to UInt and set tag
                                 Log.Info("Tag BPM missing...");
                                 double d = Convert.ToDouble(bpmVal);
-                                int i = (int)Math.Round(d, 0);
-                                uint newBpm = Convert.ToUInt32(i);
+                                uint newBpm = Convert.ToUInt32((int)Math.Round(d, 0));
                                 mp3tag.Tag.BeatsPerMinute = newBpm;
                                 Log.Info("Setting new BPM: " + "[" + mp3tag.Tag.BeatsPerMinute.ToString() + "]");
                                 mp3tag.Save();
-                            } 
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("Error setting BPM: " + ex.Message + "Data: " + "'" + ex.StackTrace + "'" + " for " + fileName + "\r\n" + ex.HelpLink);
+                    }
 
+                    try
+                    {
                         if (mp3tag.Tag.Title != null && mp3tag.Tag.Title.Length > 1)
                         {
                             title = mp3tag.Tag.Title;
@@ -270,6 +279,14 @@ namespace mp3Service2
                                 }
                             }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("Error modifying artist: " + ex.Message + "Data: " + "'" + ex.StackTrace + "'" + " for " + fileName + "\r\n" + ex.HelpLink);
+                    }
+
+                    try
+                    {
                         //Get artist from filename
                         if (mp3tag.Tag.Performers.Length < 1 || string.IsNullOrEmpty(mp3tag.Tag.Performers[0]))
                         {
@@ -294,7 +311,15 @@ namespace mp3Service2
                             }
                             mp3tag.Save();
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("Error modifying artist from filename: " + ex.Message + "Data: " + "'" + ex.StackTrace + "'" + " for " + fileName + "\r\n" + ex.HelpLink);
+                    }
 
+
+                    try
+                    {
                         // Get title from filename
                         if (mp3tag.Tag.Title == null || title.Length < 2)
                         {
@@ -436,7 +461,7 @@ namespace mp3Service2
                             }
                         }
                     }
-                    catch (Exception ex)    
+                    catch (Exception ex)
                     {
                         Log.Error(string.Format("Replace copy error: {0}",
                                                 ex.Message + "\r\n" + "DesktopPath: " + bugPath + "\r\n"));
@@ -500,16 +525,23 @@ namespace mp3Service2
         }
 
         //Remove redundant subdirs
-        private void RemoveDirectories(string test1)
+        private void RemoveDirectories(string folder)
         {
             ILog Log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
             try
             {
-                foreach (var d in Directory.GetDirectories(test1))
+                foreach (var d in Directory.GetDirectories(folder))
                 {
                     var files = Directory.GetFiles(d)
-                               .Where(name => (!name.StartsWith("INCOMPLETE~") && !name.EndsWith(".mp3") && !name.EndsWith(".m4a") && !name.EndsWith(".txt")));
+                               .Where(name => (!name.StartsWith("INCOMPLETE~") 
+                               && !name.EndsWith(".mp3") 
+                               && !name.EndsWith(".m4a") 
+                               && !name.EndsWith(".txt")
+                               && !name.EndsWith(".wav")
+                               && !name.EndsWith(".flac")
+                               && !name.EndsWith(".aif")
+                               && !name.EndsWith(".aiff")));
 
                     foreach (var file in files)
                     {
