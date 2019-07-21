@@ -27,6 +27,8 @@ namespace mp3Service2
         public UInt32 bpm;
         public string fileversion = "v1.1.0.4";
 
+        TagLib.File mp3tag;
+
         private string bugPath = "";
 
         private const string _copiedFileList = "copiedList.txt";
@@ -135,8 +137,13 @@ namespace mp3Service2
 
 
             var fileArr = Directory.GetFiles(BasePath, "*.*", SearchOption.AllDirectories)
-                                   .Where(s => s.EndsWith(".mp3") || s.EndsWith(".m4a") || s.ToLower().EndsWith(".wav")
-                                       || s.ToLower().EndsWith(".aif") || s.ToLower().EndsWith(".aiff") || s.ToLower().EndsWith(".flac")).ToArray();
+                                   .Where(s => s.EndsWith(".mp3") || 
+                                   s.EndsWith(".m4a") || 
+                                   s.ToLower().EndsWith(".wav") || 
+                                   s.ToLower().EndsWith(".aif") || 
+                                   s.ToLower().EndsWith(".aiff") || 
+                                   s.ToLower().EndsWith(".flac"))
+                                   .ToArray();
 
             string copiedFileList = BasePath + "\\" + _copiedFileList;
 
@@ -191,7 +198,7 @@ namespace mp3Service2
                 ProcessStartInfo consoleBpmProcessInfo = getProcessInfo("consolebpm.exe");
                 Process consoleBpmProcess = new Process();
 
-                tempRegFilename = regexFilename(tempRegFilename, ".mp3");
+                tempRegFilename = cleanFileName(tempRegFilename, ".mp3");
 
                 if (!file.Contains("INCOMPLETE~"))
                 {
@@ -199,7 +206,14 @@ namespace mp3Service2
                     Log.Info("---------------------------------------------------------------");
                     Log.Info("PROCESSING: " + fileName);
 
-                    TagLib.File mp3tag = TagLib.File.Create(file);
+                    try
+                    {
+                        mp3tag = TagLib.File.Create(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("Error creating TagLib file: " + ex.Message);
+                    }
 
                     try
                     {
@@ -207,15 +221,16 @@ namespace mp3Service2
                         string bpmVal;
 
                         consoleBpmProcess.StartInfo.Arguments = "\"" + file + "\"";
+                        Log.Debug(consoleBpmProcess.StartInfo.Arguments);
                         consoleBpmProcess.Start();
                         bpmVal = consoleBpmProcess.StandardOutput.ReadLine();
                         consoleBpmProcess.WaitForExit();
                         Log.Info("BPM Detected: " + bpmVal);
 
                         //Apply to tag
-
                         if (fileName.ToLower().Contains(".mp3"))
                         {
+                            mp3tag = TagLib.File.Create(file);
                             if (mp3tag.Tag.BeatsPerMinute.ToString().Length > 1)
                             {
                                 if (mp3tag.Tag.BeatsPerMinute > 65 && mp3tag.Tag.BeatsPerMinute < 135)
@@ -358,39 +373,39 @@ namespace mp3Service2
                             if (file.ToLower().Contains(".mp3"))
                             {
                                 tempExt = ".mp3";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
                             if (file.ToLower().Contains(".m4a"))
                             {
                                 tempExt = ".m4a";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
                             if (file.ToLower().Contains(".wav"))
                             {
                                 tempExt = ".wav";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
                             if (file.ToLower().Contains(".aif"))
                             {
                                 tempExt = ".aif";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
                             if (file.ToLower().Contains(".aiff"))
                             {
                                 tempExt = ".aiff";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
                             if (file.ToLower().Contains(".flac"))
                             {
                                 tempExt = ".flac";
-                                fileName = regexFilename(fileName, tempExt);
+                                fileName = cleanFileName(fileName, tempExt);
                             }
 
                             if (tagArtist.Length > 2 && tagTitle.Length > 2)
                                 if (!tagArtist.Contains(@"."))
                                 {
                                     string tagFull = tagArtist + " - " + tagTitle;
-                                    tagFull = regexFilename(tagFull, tempExt);
+                                    tagFull = cleanFileName(tagFull, tempExt);
                                     fileName = tagFull;
                                     Log.Info("New filename: " + tagFull);
                                 }
@@ -509,7 +524,7 @@ namespace mp3Service2
         }
 
         //Apply file extention
-        private string regexFilename(string fileName, string extention)
+        private string cleanFileName(string fileName, string extention)
         {
             fileName = Regex.Replace(fileName, RegexPattern1, RegexReplace1);
             fileName = Regex.Replace(fileName, RegexPattern2, RegexReplace2);
