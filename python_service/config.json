@@ -1,0 +1,22 @@
+{
+  "base_path": "c:/soulseek",
+  "local_path": "D:/BackupShare/Shared",
+  "network_path": "//psf/SAMSUNG/Traktor",
+  "desktop_path": "c:/",
+  "poll_interval": 40,
+  "include_share": false,
+  "supported_extensions": [
+    ".mp3",
+    ".m4a",
+    ".wav",
+    ".aif",
+    ".aiff",
+    ".flac"
+  ],
+  "bpm_range": {
+    "min": 65,
+    "max": 135
+  },
+  "log_file": "mp3_service.log",
+  "log_level": "INFO"
+}
