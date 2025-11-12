@@ -26,6 +26,8 @@ cd python_service
 pip install -r requirements.txt
 ```
 
+**Note**: A `config.example.json` file is provided as reference. Use `python main.py init` to create your own `config.json`, or copy and customize the example file.
+
 ### Basic Usage
 
 ```bash
@@ -272,7 +274,7 @@ python main.py start --config ~/dj-config.json --watch
 ```
 python_service/
 ├── main.py              # CLI entry point
-├── config.json          # Configuration file
+├── config.example.json  # Example configuration (copy to config.json)
 ├── requirements.txt     # Python dependencies
 ├── src/
 │   ├── __init__.py

@@ -1,8 +1,9 @@
 {
-  "base_path": "c:/soulseek",
-  "local_path": "D:/BackupShare/Shared",
-  "network_path": "//psf/SAMSUNG/Traktor",
-  "desktop_path": "c:/",
+  "_comment": "Example configuration - Run 'python main.py init' to create config.json, or copy this file to config.json and customize",
+  "base_path": "~/Music/Incoming",
+  "local_path": "~/Music/Processed",
+  "network_path": "",
+  "desktop_path": "",
   "poll_interval": 40,
   "include_share": false,
   "supported_extensions": [

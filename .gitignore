@@ -1,9 +1,42 @@
+# C# / .NET
 src/mp3Service/bin/
 src/mp3Service/packages/
 src/mp3Service/obj/
 src/.vs/
-*.log
 *.suo
 mp3Service2/mp3Service2/bin/
 mp3Service2/mp3Service2/obj/
 mp3Service2/packages/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+*.log
+config.json
+test-config.json
+copiedList.txt
+
