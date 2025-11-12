@@ -14,7 +14,7 @@ class FileHandler:
     PATTERNS = [
         (r'--', ' - '),  # Replace double dashes with single dash
         (r'[_]{1,}', ' '),  # Replace underscores with spaces
-        (r'^[a-cA-C0-9]{1,3}[\s-_\.]+', ''),  # Remove leading numbers/letters
+        (r'^[a-cA-C0-9]{1,3}[\s\-_\.]+', ''),  # Remove leading numbers/letters
         (r'(\()*(_-\s)*(www\.*)*-*[a-zA-Z0-9\(\-]+\.[\[\(]*(net|com|org|ru)+[\)\]*[\d]*', ''),  # Remove website patterns
         (r'(?!\)-)[-_\)]+[a-zA-Z0-9]{2,3}\.', '.'),  # Clean up before extension
         (r'[-_]*siberia', ''),  # Remove 'siberia' pattern

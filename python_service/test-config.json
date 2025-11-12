@@ -1,0 +1,22 @@
+{
+  "base_path": "/root/Music/Incoming",
+  "local_path": "/root/Music/Processed",
+  "network_path": "",
+  "desktop_path": "",
+  "poll_interval": 40,
+  "include_share": false,
+  "supported_extensions": [
+    ".mp3",
+    ".m4a",
+    ".wav",
+    ".aif",
+    ".aiff",
+    ".flac"
+  ],
+  "bpm_range": {
+    "min": 65,
+    "max": 135
+  },
+  "log_file": "mp3_service.log",
+  "log_level": "INFO"
+}
