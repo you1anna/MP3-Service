@@ -114,3 +114,34 @@ class Config:
     def __repr__(self) -> str:
         """String representation of configuration."""
         return f"Config(config_path='{self.config_path}')"
+
+
+def create_default_config() -> Dict[str, Any]:
+    """
+    Create a default configuration dictionary.
+
+    Returns:
+        Default configuration dictionary
+    """
+    return {
+        "base_path": str(Path.home() / "Music" / "Incoming"),
+        "local_path": str(Path.home() / "Music" / "Processed"),
+        "network_path": "",
+        "desktop_path": "",
+        "poll_interval": 40,
+        "include_share": False,
+        "supported_extensions": [
+            ".mp3",
+            ".m4a",
+            ".wav",
+            ".aif",
+            ".aiff",
+            ".flac"
+        ],
+        "bpm_range": {
+            "min": 65,
+            "max": 135
+        },
+        "log_file": "mp3_service.log",
+        "log_level": "INFO"
+    }
