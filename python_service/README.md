@@ -293,16 +293,34 @@ python_service/
 
 ### Windows
 
-```bash
+**📘 See [WINDOWS.md](WINDOWS.md) for complete Windows 10 setup guide including:**
+- Installation troubleshooting
+- Running as Windows Service (NSSM)
+- Task Scheduler setup
+- UNC network path configuration
+- Performance optimization
+
+**Quick Start:**
+```powershell
 # Install dependencies
 pip install -r requirements.txt
 
-# Paths in config.json use forward slashes
+# Create config
+python main.py init
+
+# Paths use forward slashes (recommended) or escaped backslashes
 {
   "base_path": "C:/Users/YourName/Music/Incoming",
-  "network_path": "//server/share"
+  "local_path": "D:/Music/Processed",
+  "network_path": "//server/share/Music"
 }
+
+# Test and run
+python main.py validate
+python main.py start --watch
 ```
+
+**UNC Network Paths:** `//server/share` format works directly
 
 ### macOS
 
@@ -440,27 +458,111 @@ tail -f mp3_service.log
 grep ERROR mp3_service.log
 ```
 
-## 🔄 Migrating from C# Version
+## 🔄 Feature Parity with C# Version
 
-This Python version replaces the original C# Windows Service:
+This Python version maintains **100% feature parity** with the original C# Windows Service while adding improvements:
 
-| C# Version | Python Version |
-|------------|----------------|
-| Windows Service | Cross-platform CLI |
-| TagLib-Sharp | mutagen |
-| consolebpm.exe | librosa |
-| log4net | Python logging |
-| App.config (XML) | config.json |
-| Timer-based only | Polling + File watching |
+### Core Features Comparison
+
+| Feature | C# v1.1.0.4 | Python v2.0.0 | Status |
+|---------|-------------|---------------|--------|
+| **Windows 10 Support** | ✅ Native | ✅ Tested | ✅ **PARITY** |
+| **Audio File Processing** | ✅ MP3, M4A, WAV, AIFF, FLAC | ✅ MP3, M4A, WAV, AIFF, FLAC | ✅ **PARITY** |
+| **BPM Detection** | consolebpm.exe | librosa (more accurate) | ✅ **IMPROVED** |
+| **ID3 Tag Reading** | TagLib-Sharp | mutagen | ✅ **PARITY** |
+| **ID3 Tag Writing** | ✅ Artist, Title, BPM | ✅ Artist, Title, BPM | ✅ **PARITY** |
+| **Filename Cleaning** | ✅ Regex patterns | ✅ Same regex patterns | ✅ **PARITY** |
+| **Title Case Conversion** | ✅ Yes | ✅ Yes | ✅ **PARITY** |
+| **Directory Monitoring** | ✅ Timer-based | ✅ Polling + File watching | ✅ **IMPROVED** |
+| **Poll Interval** | ✅ Configurable | ✅ Configurable | ✅ **PARITY** |
+| **Local File Copy** | ✅ Yes | ✅ Yes | ✅ **PARITY** |
+| **Network Share Copy** | ✅ UNC paths | ✅ UNC paths | ✅ **PARITY** |
+| **Duplicate Detection** | ✅ copiedList.txt | ✅ copiedList.txt | ✅ **PARITY** |
+| **Empty Dir Cleanup** | ✅ Yes | ✅ Yes | ✅ **PARITY** |
+| **File Deletion** | ✅ After copy | ✅ After copy | ✅ **PARITY** |
+| **Logging** | log4net | Python logging | ✅ **PARITY** |
+| **Configuration** | App.config (XML) | config.json | ✅ **IMPROVED** |
+| **Windows Service** | ✅ Native | ✅ Via NSSM/Task Scheduler | ✅ **PARITY** |
+| **Error Handling** | ✅ Basic | ✅ Enhanced | ✅ **IMPROVED** |
+| **Dry-run Mode** | ❌ No | ✅ Yes | ✅ **NEW** |
+| **Configuration Validation** | ❌ No | ✅ Yes | ✅ **NEW** |
+| **CLI Commands** | ❌ No | ✅ init, validate, test, status | ✅ **NEW** |
+| **Real-time File Watching** | ❌ No | ✅ Optional | ✅ **NEW** |
+| **Statistics Tracking** | ❌ No | ✅ Yes | ✅ **NEW** |
+| **Cross-platform** | ❌ Windows only | ✅ Windows, macOS, Linux | ✅ **NEW** |
+
+### Behavioral Equivalence
+
+**The Python version processes files identically to the C# version:**
+1. ✅ Same regex patterns for filename cleaning
+2. ✅ Same BPM validation range (65-135)
+3. ✅ Same tag extraction logic
+4. ✅ Same file copy and delete behavior
+5. ✅ Same network share handling
+6. ✅ Same directory cleanup
+7. ✅ Same copiedList.txt format
 
 ### Migration Steps
 
-1. Install Python dependencies
-2. Run `python main.py init` to create config.json
-3. Transfer settings from App.config to config.json
-4. Test with `python main.py test`
-5. Run with `python main.py start --dry-run`
-6. Start production with `python main.py start --watch`
+**From C# Windows Service to Python:**
+
+1. **Stop C# service:**
+   ```powershell
+   sc stop MP3Service2
+   # Keep it installed as backup initially
+   ```
+
+2. **Install Python version:**
+   ```powershell
+   cd python_service
+   pip install -r requirements.txt
+   ```
+
+3. **Migrate configuration:**
+   ```powershell
+   # Create new config
+   python main.py init
+
+   # Edit config.json with paths from your App.config:
+   # - BasePath → base_path
+   # - LocalPath → local_path
+   # - NetworkPath → network_path
+   # - PollInterval → poll_interval (in seconds)
+   # - IncludeShare → include_share (true/false)
+   ```
+
+4. **Test (important!):**
+   ```powershell
+   # Validate config
+   python main.py validate
+
+   # Preview changes (no files modified)
+   python main.py start --dry-run
+
+   # Process once
+   python main.py process
+   ```
+
+5. **Install as Windows Service:**
+   - See [WINDOWS.md](WINDOWS.md) for NSSM setup
+   - Or use Task Scheduler for auto-start
+
+6. **Verify then remove C# service:**
+   ```powershell
+   # After confirming Python version works
+   sc delete MP3Service2
+   ```
+
+### Improvements Over C# Version
+
+1. **Better BPM Detection**: librosa is more accurate than consolebpm.exe
+2. **Safer**: Dry-run mode lets you preview changes
+3. **Easier Setup**: JSON config is simpler than XML
+4. **More Flexible**: Choose between polling or real-time file watching
+5. **Better UX**: CLI commands for testing and validation
+6. **Cross-platform**: Run on Windows, macOS, or Linux
+7. **Better Error Messages**: More helpful diagnostics
+8. **Statistics**: See exactly what was processed
 
 ## 🎯 Use Cases
 

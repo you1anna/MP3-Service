@@ -149,6 +149,13 @@ class FileHandler:
             self.logger.info(f"Copied: {source.name} -> {destination}")
             return True
 
+        except PermissionError as e:
+            self.logger.error(f"Permission denied copying {source.name}: {e}. File may be in use.")
+            return False
+        except OSError as e:
+            # Handles Windows-specific errors like file locking
+            self.logger.error(f"OS error copying {source.name}: {e}")
+            return False
         except Exception as e:
             self.logger.error(f"Error copying file {source} to {destination}: {e}")
             return False
@@ -167,6 +174,13 @@ class FileHandler:
             file_path.unlink()
             self.logger.info(f"Deleted: {file_path}")
             return True
+        except PermissionError as e:
+            self.logger.error(f"Permission denied deleting {file_path.name}: {e}. File may be in use.")
+            return False
+        except OSError as e:
+            # Handles Windows-specific errors like file locking
+            self.logger.error(f"OS error deleting {file_path.name}: {e}")
+            return False
         except Exception as e:
             self.logger.error(f"Error deleting file {file_path}: {e}")
             return False
