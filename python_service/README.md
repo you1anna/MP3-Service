@@ -16,7 +16,24 @@ A modern, cross-platform Python service that automatically processes audio files
 
 ## 🚀 Quick Start
 
-### Installation
+### Easy Setup (Recommended)
+
+```bash
+# Navigate to project directory
+cd python_service
+
+# Run interactive setup wizard
+python setup.py
+```
+
+The setup wizard will:
+- ✅ Check Python version
+- ✅ Verify/install dependencies
+- ✅ Create configuration interactively
+- ✅ Set up directories
+- ✅ Validate everything
+
+### Manual Installation
 
 ```bash
 # Navigate to project directory
@@ -24,24 +41,27 @@ cd python_service
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Create configuration
+python main.py init
 ```
 
-**Note**: A `config.example.json` file is provided as reference. Use `python main.py init` to create your own `config.json`, or copy and customize the example file.
+**Note**: A `config.example.json` file is provided as reference.
 
 ### Basic Usage
 
 ```bash
-# Create default configuration
-python main.py init
-
 # Validate configuration
 python main.py validate
+
+# Run health check
+python health_check.py
 
 # Test without making changes
 python main.py start --dry-run
 
 # Start processing
-python main.py start
+python main.py start --watch
 ```
 
 ## 📋 Command Reference
