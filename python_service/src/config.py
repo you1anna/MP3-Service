@@ -111,6 +111,22 @@ class Config:
         """Get logging level."""
         return self._config.get('log_level', 'INFO')
 
+    @property
+    def backup_before_delete(self) -> bool:
+        """Check if files should be backed up before deletion."""
+        return self._config.get('backup_before_delete', False)
+
+    @property
+    def backup_path(self) -> Path:
+        """Get backup path for original files."""
+        path = self._config.get('backup_path')
+        return Path(path) if path else None
+
+    @property
+    def file_stability_wait(self) -> int:
+        """Get seconds to wait for file stability (polling mode)."""
+        return int(self._config.get('file_stability_wait', 2))
+
     def __repr__(self) -> str:
         """String representation of configuration."""
         return f"Config(config_path='{self.config_path}')"
@@ -142,6 +158,9 @@ def create_default_config() -> Dict[str, Any]:
             "min": 65,
             "max": 135
         },
+        "backup_before_delete": False,
+        "backup_path": "",
+        "file_stability_wait": 2,
         "log_file": "mp3_service.log",
         "log_level": "INFO"
     }
