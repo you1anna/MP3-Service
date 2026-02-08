@@ -1,0 +1,26 @@
+{
+  "_comment": "Example configuration - Run 'python setup.py' for interactive setup, or copy this file to config.json and customize",
+  "base_path": "~/Music/Incoming",
+  "local_path": "~/Music/Processed",
+  "network_path": "",
+  "desktop_path": "",
+  "poll_interval": 40,
+  "include_share": false,
+  "supported_extensions": [
+    ".mp3",
+    ".m4a",
+    ".wav",
+    ".aif",
+    ".aiff",
+    ".flac"
+  ],
+  "bpm_range": {
+    "min": 65,
+    "max": 135
+  },
+  "backup_before_delete": false,
+  "backup_path": "",
+  "file_stability_wait": 2,
+  "log_file": "mp3_service.log",
+  "log_level": "INFO"
+}
