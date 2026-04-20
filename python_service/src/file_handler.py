@@ -47,6 +47,10 @@ class FileHandler:
         # Convert to title case
         name = name.strip().title()
 
+        # Remove characters that are invalid in filenames
+        name = re.sub(r'[/\\:*?"<>|]', '', name)
+        name = name.strip()
+
         # Add extension back
         return f"{name}{extension}"
 
@@ -153,24 +157,32 @@ class FileHandler:
             self.logger.error(f"Permission denied copying {source.name}: {e}. File may be in use.")
             return False
         except OSError as e:
-            # Handles Windows-specific errors like file locking
             self.logger.error(f"OS error copying {source.name}: {e}")
             return False
         except Exception as e:
             self.logger.error(f"Error copying file {source} to {destination}: {e}")
             return False
 
-    def delete_file(self, file_path: Path) -> bool:
+    def delete_file(self, file_path: Path, backup_path: Optional[Path] = None) -> bool:
         """
-        Delete a file.
+        Delete a file, optionally moving it to a backup directory instead of unlinking.
 
         Args:
             file_path: Path to file to delete
+            backup_path: If provided, move file here instead of deleting
 
         Returns:
-            True if deletion successful, False otherwise
+            True if operation successful, False otherwise
         """
         try:
+            if backup_path is not None:
+                backup_path.mkdir(parents=True, exist_ok=True)
+                dest = backup_path / file_path.name
+                if dest.exists():
+                    dest = backup_path / f"{file_path.stem}_{int(file_path.stat().st_mtime)}{file_path.suffix}"
+                shutil.move(str(file_path), str(dest))
+                self.logger.info(f"Backed up (instead of delete): {file_path} -> {dest}")
+                return True
             file_path.unlink()
             self.logger.info(f"Deleted: {file_path}")
             return True
@@ -178,20 +190,32 @@ class FileHandler:
             self.logger.error(f"Permission denied deleting {file_path.name}: {e}. File may be in use.")
             return False
         except OSError as e:
-            # Handles Windows-specific errors like file locking
             self.logger.error(f"OS error deleting {file_path.name}: {e}")
             return False
         except Exception as e:
             self.logger.error(f"Error deleting file {file_path}: {e}")
             return False
 
+    MARKER_FILENAME = ".mp3-service-managed"
+
     def remove_empty_directories(self, directory: Path) -> None:
         """
         Remove empty subdirectories and clean up non-audio files.
 
+        Refuses to run unless a marker file exists at the directory root,
+        to guard against misconfigured base_path deleting unrelated data.
+
         Args:
             directory: Directory to clean
         """
+        marker = directory / self.MARKER_FILENAME
+        if not marker.exists():
+            self.logger.warning(
+                f"Skipping cleanup: marker file missing at {marker}. "
+                f"Create it with `touch '{marker}'` to enable directory cleanup."
+            )
+            return
+
         try:
             for subdir in directory.iterdir():
                 if not subdir.is_dir():

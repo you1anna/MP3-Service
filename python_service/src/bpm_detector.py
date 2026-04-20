@@ -53,6 +53,12 @@ class BPMDetector:
             # Detect tempo
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
 
+            # librosa may return a numpy array; extract scalar
+            if hasattr(tempo, '__len__'):
+                tempo = float(tempo[0]) if len(tempo) > 0 else float(tempo)
+            else:
+                tempo = float(tempo)
+
             # Convert to integer
             bpm = int(round(tempo))
 

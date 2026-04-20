@@ -43,6 +43,9 @@ class Config:
         if missing_fields:
             raise ValueError(f"Missing required configuration fields: {', '.join(missing_fields)}")
 
+        if self._config.get('backup_before_delete') and not self._config.get('backup_path'):
+            raise ValueError("backup_before_delete is true but backup_path is empty")
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value.

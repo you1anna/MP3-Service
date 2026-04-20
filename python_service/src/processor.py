@@ -1,5 +1,6 @@
 """Main audio file processor."""
 
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict
 from .config import Config
@@ -101,35 +102,26 @@ class AudioProcessor:
             else:
                 self.logger.info("Tag data missing...")
 
-            # Handle BPM detection for MP3 files (skip in dry-run for speed)
-            if file_path.suffix.lower() == '.mp3' and not self.dry_run:
+            is_flac = file_path.suffix.lower() == '.flac'
+
+            # Handle BPM detection for all audio files (skip in dry-run for speed)
+            if not self.dry_run:
                 bpm = self._process_bpm(file_path, bpm)
 
-            # Extract artist/title from filename if missing
-            if not artist or not title:
-                filename_artist, filename_title = self.tag_handler.extract_from_filename(file_path.name)
+            # Check BPM filter — skip files outside range
+            if bpm is not None:
+                min_bpm, max_bpm = self.config.bpm_range
+                if not self.bpm_detector.is_bpm_valid(bpm, min_bpm, max_bpm):
+                    self.logger.info(f"SKIPPED (BPM {bpm} outside {min_bpm}-{max_bpm}): {file_path.name}")
+                    self.stats['skipped'] += 1
+                    return
 
-                if not artist and filename_artist:
-                    artist = filename_artist
-                    if not self.dry_run:
-                        self.tag_handler.set_tags(file_path, artist=artist)
-                    self.logger.info(f"{'Would set' if self.dry_run else 'Set'} artist from filename: '{artist}'")
-
-                if not title and filename_title:
-                    title = filename_title
-                    if not self.dry_run:
-                        self.tag_handler.set_tags(file_path, title=title)
-                    self.logger.info(f"{'Would set' if self.dry_run else 'Set'} title from filename: '{title}'")
-
-                # Clear extra tags
-                if not self.dry_run:
-                    self.tag_handler.clear_extra_tags(file_path)
-
-            # Determine output filename
-            output_filename = self._get_output_filename(file_path, artist, title)
-
-            # Copy file to destinations
-            self._copy_to_destinations(file_path, output_filename)
+            if is_flac:
+                # FLAC: convert to AIFF, keep original
+                self._process_flac(file_path, artist, title, bpm)
+            else:
+                # Non-FLAC: clean metadata/filename, move to Processed
+                self._process_standard(file_path, artist, title)
 
             # Add to copied list
             if not self.dry_run:
@@ -141,6 +133,106 @@ class AudioProcessor:
         except Exception as e:
             self.logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
             self.stats['errors'] += 1
+
+    def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str]) -> None:
+        """Process a non-FLAC audio file: clean tags/filename, move to Processed."""
+        # Extract artist/title from filename if missing
+        if not artist or not title:
+            filename_artist, filename_title = self.tag_handler.extract_from_filename(file_path.name)
+
+            if not artist and filename_artist:
+                artist = filename_artist
+                if not self.dry_run:
+                    self.tag_handler.set_tags(file_path, artist=artist)
+                self.logger.info(f"{'Would set' if self.dry_run else 'Set'} artist from filename: '{artist}'")
+
+            if not title and filename_title:
+                title = filename_title
+                if not self.dry_run:
+                    self.tag_handler.set_tags(file_path, title=title)
+                self.logger.info(f"{'Would set' if self.dry_run else 'Set'} title from filename: '{title}'")
+
+            # Clear extra tags
+            if not self.dry_run:
+                self.tag_handler.clear_extra_tags(file_path)
+
+        # Determine output filename
+        output_filename = self._get_output_filename(file_path, artist, title)
+
+        # Copy file to destinations (and delete original)
+        self._copy_to_destinations(file_path, output_filename, delete_original=True)
+
+    def _process_flac(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int]) -> None:
+        """Process a FLAC file: convert to AIFF, copy tags, move AIFF to Processed, keep original."""
+        # Extract artist/title from filename if missing from tags
+        if not artist or not title:
+            filename_artist, filename_title = self.tag_handler.extract_from_filename(file_path.name)
+            if not artist and filename_artist:
+                artist = filename_artist
+            if not title and filename_title:
+                title = filename_title
+
+        # Determine output filename with .aiff extension
+        output_filename = self._get_output_filename(file_path, artist, title, override_ext='.aiff')
+
+        if self.dry_run:
+            self.logger.info(f"Would convert FLAC to AIFF: {file_path.name} -> {output_filename}")
+            return
+
+        # Convert FLAC to AIFF via ffmpeg
+        aiff_dest = self.config.local_path / output_filename
+        aiff_dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if not self._convert_flac_to_aiff(file_path, aiff_dest):
+            self.stats['errors'] += 1
+            self.stats['processed'] -= 1  # will be incremented by caller
+            return
+
+        # Copy tags (artist, title, BPM) to the new AIFF
+        self.tag_handler.set_tags(aiff_dest, artist=artist, title=title, bpm=bpm)
+        self.tag_handler.clear_extra_tags(aiff_dest)
+
+        self.logger.info(f"Converted FLAC->AIFF: {file_path.name} -> {output_filename}")
+        self.logger.info(f"Original FLAC kept: {file_path}")
+
+        # Also copy to network share if enabled
+        if self.config.include_share and self.config.network_path:
+            self.file_handler.copy_to_network(aiff_dest, self.config.network_path)
+
+    def _convert_flac_to_aiff(self, input_path: Path, output_path: Path) -> bool:
+        """Convert FLAC to 16-bit/44.1kHz AIFF using ffmpeg."""
+        try:
+            input_abs = input_path.resolve(strict=True)
+            output_abs = output_path.resolve()
+            if not str(input_abs).startswith('/') or not str(output_abs).startswith('/'):
+                self.logger.error(f"Refusing non-absolute ffmpeg path: {input_abs} / {output_abs}")
+                return False
+            cmd = [
+                'ffmpeg', '-y', '-i', str(input_abs),
+                '-acodec', 'pcm_s16be',
+                '-ar', '44100',
+                '-f', 'aiff',
+                str(output_abs)
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode != 0:
+                self.logger.error(f"ffmpeg conversion failed: {result.stderr}")
+                return False
+            return True
+        except subprocess.TimeoutExpired:
+            self.logger.error(f"ffmpeg conversion timed out for {input_path}")
+            return False
+        except FileNotFoundError:
+            self.logger.error("ffmpeg not found. Install with: brew install ffmpeg")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error converting FLAC to AIFF: {e}")
+            return False
 
     def _process_bpm(self, file_path: Path, current_bpm: Optional[int]) -> Optional[int]:
         """
@@ -181,10 +273,12 @@ class AudioProcessor:
                 return corrected_bpm
             else:
                 self.logger.warning(f"Detected BPM out of range: {corrected_bpm}")
+                return corrected_bpm
 
-        return None
+        # Detection failed — return tag BPM (even if out of range) for filtering
+        return current_bpm
 
-    def _get_output_filename(self, file_path: Path, artist: Optional[str], title: Optional[str]) -> str:
+    def _get_output_filename(self, file_path: Path, artist: Optional[str], title: Optional[str], override_ext: Optional[str] = None) -> str:
         """
         Determine output filename based on tags or cleaned original name.
 
@@ -192,11 +286,12 @@ class AudioProcessor:
             file_path: Original file path
             artist: Artist name
             title: Track title
+            override_ext: Override the file extension (e.g. '.aiff' for FLAC conversion)
 
         Returns:
             Output filename
         """
-        extension = file_path.suffix.lower()
+        extension = override_ext if override_ext else file_path.suffix.lower()
 
         # Use tag data if available and artist doesn't contain '.'
         if artist and title and len(artist) > 2 and len(title) > 2:
@@ -212,13 +307,14 @@ class AudioProcessor:
         cleaned = self.file_handler.clean_filename(file_path.name, extension)
         return cleaned
 
-    def _copy_to_destinations(self, source_path: Path, output_filename: str) -> None:
+    def _copy_to_destinations(self, source_path: Path, output_filename: str, delete_original: bool = True) -> None:
         """
         Copy file to local and optionally network destinations.
 
         Args:
             source_path: Source file path
             output_filename: Output filename to use
+            delete_original: If True, delete the source file after copying
         """
         # Copy to local path
         local_dest = self.config.local_path / output_filename
@@ -230,8 +326,10 @@ class AudioProcessor:
                 self.logger.info(f"Would publish to network: {network_dest}")
         else:
             if self.file_handler.copy_file(source_path, local_dest, safe=True):
-                # Delete original after successful copy
-                self.file_handler.delete_file(source_path)
+                # Delete original after successful copy (unless told not to)
+                if delete_original:
+                    backup = self.config.backup_path if self.config.backup_before_delete else None
+                    self.file_handler.delete_file(source_path, backup_path=backup)
 
                 # Copy to network share if enabled
                 if self.config.include_share and self.config.network_path:

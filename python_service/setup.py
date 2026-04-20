@@ -246,8 +246,6 @@ def main():
     print("\nFor more information:")
     print("  - Run: python main.py --help")
     print("  - See: README.md")
-    if sys.platform == 'win32':
-        print("  - Windows guide: WINDOWS.md")
     print()
 
 
