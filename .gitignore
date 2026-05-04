@@ -30,3 +30,5 @@ build/
 config.json
 test-config.json
 copiedList.txt
+external_seen.txt
+external_seen.txt.tmp

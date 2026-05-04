@@ -22,5 +22,14 @@
   "backup_path": "",
   "file_stability_wait": 2,
   "log_file": "mp3_service.log",
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "_rekordbox_xml_path_doc": "Optional. Absolute path to the Rekordbox XML file processed tracks should be appended to. Configure the same path in Rekordbox > Preferences > Advanced > rekordbox xml > Imported Library. Leave unset to disable sync.",
+  "rekordbox_xml_path": "",
+  "_external_watch_doc": "External drive watcher: registers new audio files appearing on an external drive in the same Rekordbox XML. First scan baselines existing files without registering them — only files that appear AFTER the baseline are registered.",
+  "external_watch_path": "/Volumes/Extreme SSD",
+  "external_poll_interval": 300,
+  "external_seen_file": "",
+  "external_skip_dirs": [],
+  "_ssd_archive_doc": "Optional. When set AND the volume is mounted, processed tracks are moved here from local_path. Path must live under /Volumes/<drive>/... so liveness can be checked. When the SSD is unplugged, tracks stay in local_path automatically.",
+  "ssd_archive_path": ""
 }

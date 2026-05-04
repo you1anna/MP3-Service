@@ -8,6 +8,8 @@ from .logger import get_logger
 from .file_handler import FileHandler
 from .tag_handler import TagHandler
 from .bpm_detector import BPMDetector
+from .rekordbox_xml import RekordboxXMLWriter
+from .ssd_archive import SSDArchiver
 
 
 class AudioProcessor:
@@ -29,6 +31,8 @@ class AudioProcessor:
         self.file_handler = FileHandler()
         self.tag_handler = TagHandler()
         self.bpm_detector = BPMDetector()
+        self.rekordbox_xml = RekordboxXMLWriter(config.rekordbox_xml_path)
+        self.ssd_archiver = SSDArchiver(config.ssd_archive_path)
 
         # Statistics
         self.stats = {
@@ -113,7 +117,7 @@ class AudioProcessor:
                 self._process_flac(file_path, artist, title, bpm)
             else:
                 # Non-FLAC: clean metadata/filename, move to Processed
-                self._process_standard(file_path, artist, title)
+                self._process_standard(file_path, artist, title, bpm)
 
             # Add to copied list
             if not self.dry_run:
@@ -126,7 +130,7 @@ class AudioProcessor:
             self.logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
             self.stats['errors'] += 1
 
-    def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str]) -> None:
+    def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int] = None) -> None:
         """Process a non-FLAC audio file: clean tags/filename, move to Processed."""
         # Extract artist/title from filename if missing
         if not artist or not title:
@@ -152,7 +156,13 @@ class AudioProcessor:
         output_filename = self._get_output_filename(file_path, artist, title)
 
         # Copy file to destinations (and delete original)
-        self._copy_to_destinations(file_path, output_filename, delete_original=True)
+        local_dest = self._copy_to_destinations(file_path, output_filename, delete_original=True)
+
+        if local_dest is not None:
+            # Move to SSD if configured and mounted; otherwise stay local
+            final_dest = self.ssd_archiver.relocate(local_dest)
+            # Register in Rekordbox XML library (no-op if not configured / fails safely)
+            self.rekordbox_xml.register(final_dest, artist, title, bpm)
 
     def _process_flac(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int]) -> None:
         """Process a FLAC file: convert to AIFF, copy tags, move AIFF to Processed, keep original."""
@@ -190,6 +200,11 @@ class AudioProcessor:
         # Also copy to network share if enabled
         if self.config.include_share and self.config.network_path:
             self.file_handler.copy_to_network(aiff_dest, self.config.network_path)
+
+        # Move to SSD if configured and mounted; otherwise stay local
+        final_dest = self.ssd_archiver.relocate(aiff_dest)
+        # Register in Rekordbox XML library (no-op if not configured / fails safely)
+        self.rekordbox_xml.register(final_dest, artist, title, bpm)
 
     def _convert_flac_to_aiff(self, input_path: Path, output_path: Path) -> bool:
         """Convert FLAC to 16-bit/44.1kHz AIFF using ffmpeg."""
@@ -299,7 +314,7 @@ class AudioProcessor:
         cleaned = self.file_handler.clean_filename(file_path.name, extension)
         return cleaned
 
-    def _copy_to_destinations(self, source_path: Path, output_filename: str, delete_original: bool = True) -> None:
+    def _copy_to_destinations(self, source_path: Path, output_filename: str, delete_original: bool = True) -> Optional[Path]:
         """
         Copy file to local and optionally network destinations.
 
@@ -307,6 +322,9 @@ class AudioProcessor:
             source_path: Source file path
             output_filename: Output filename to use
             delete_original: If True, delete the source file after copying
+
+        Returns:
+            The final local destination path on success, None on failure or dry-run.
         """
         # Copy to local path
         local_dest = self.config.local_path / output_filename
@@ -316,17 +334,22 @@ class AudioProcessor:
             if self.config.include_share and self.config.network_path:
                 network_dest = self.config.network_path / output_filename
                 self.logger.info(f"Would publish to network: {network_dest}")
-        else:
-            if self.file_handler.copy_file(source_path, local_dest, safe=True):
-                # Delete original after successful copy (unless told not to)
-                if delete_original:
-                    backup = self.config.backup_path if self.config.backup_before_delete else None
-                    self.file_handler.delete_file(source_path, backup_path=backup)
+            return None
 
-                # Copy to network share if enabled
-                if self.config.include_share and self.config.network_path:
-                    network_dest = self.config.network_path / output_filename
-                    self.file_handler.copy_to_network(local_dest, self.config.network_path)
+        if self.file_handler.copy_file(source_path, local_dest, safe=True):
+            # Delete original after successful copy (unless told not to)
+            if delete_original:
+                backup = self.config.backup_path if self.config.backup_before_delete else None
+                self.file_handler.delete_file(source_path, backup_path=backup)
+
+            # Copy to network share if enabled
+            if self.config.include_share and self.config.network_path:
+                network_dest = self.config.network_path / output_filename
+                self.file_handler.copy_to_network(local_dest, self.config.network_path)
+
+            return local_dest
+
+        return None
 
     def _ensure_directories(self) -> None:
         """Ensure all required directories exist."""

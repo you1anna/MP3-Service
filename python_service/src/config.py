@@ -130,6 +130,56 @@ class Config:
         """Get seconds to wait for file stability (polling mode)."""
         return int(self._config.get('file_stability_wait', 2))
 
+    @property
+    def rekordbox_xml_path(self):
+        """Path to the Rekordbox-importable XML to append processed tracks to.
+
+        When unset, Rekordbox sync is disabled. Set in Rekordbox via
+        Preferences > Advanced > rekordbox xml > database file path.
+        """
+        path = self._config.get('rekordbox_xml_path')
+        return Path(path) if path else None
+
+    @property
+    def external_watch_path(self) -> Path:
+        """Root path of the external drive to watch for new audio files."""
+        return Path(self._config.get('external_watch_path', '/Volumes/Extreme SSD'))
+
+    @property
+    def external_poll_interval(self) -> int:
+        """Seconds between scans of the external drive."""
+        return int(self._config.get('external_poll_interval', 300))
+
+    @property
+    def external_seen_file(self) -> Path:
+        """Persistent record of files already seen on the external drive.
+
+        Existence of this file flags that the baseline pass has run; on a
+        fresh install (file absent) the first scan baselines existing files
+        without registering them in the Rekordbox XML.
+        """
+        default = Path(self.config_path).resolve().parent / 'external_seen.txt'
+        path = self._config.get('external_seen_file')
+        return Path(path) if path else default
+
+    @property
+    def external_skip_dirs(self) -> list:
+        """Additional directory names to skip during external drive scan."""
+        return list(self._config.get('external_skip_dirs', []))
+
+    @property
+    def ssd_archive_path(self):
+        """Destination directory on the external SSD for processed tracks.
+
+        When set AND the underlying volume is mounted, processed tracks are
+        moved here instead of staying in local_path. When the volume is not
+        mounted, tracks remain in local_path (graceful degradation).
+        Path must live under /Volumes/<drive>/... so the mount root can be
+        derived for liveness checks.
+        """
+        path = self._config.get('ssd_archive_path')
+        return Path(path) if path else None
+
     def __repr__(self) -> str:
         """String representation of configuration."""
         return f"Config(config_path='{self.config_path}')"
