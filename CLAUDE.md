@@ -9,7 +9,7 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 
 ## Architecture
 - `main.py` — CLI entry point (start, process, test, validate, status, init)
-- `src/processor.py` — Core logic: FLAC conversion, BPM filtering, file routing
+- `src/processor.py` — Core logic: FLAC conversion, BPM detection, file routing
 - `src/tag_handler.py` — mutagen-based tag read/write (MP3, AIFF, M4A, FLAC)
 - `src/bpm_detector.py` — librosa BPM detection (all formats)
 - `src/file_handler.py` — File operations, filename cleaning, copiedList.txt
@@ -22,7 +22,7 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 ## Custom modifications (vs upstream)
 - FLAC→AIFF (16-bit/44.1kHz) conversion added to processor.py
 - BPM detection on all formats (was MP3-only)
-- BPM range filtering: skips tracks outside 65-135
+- BPM detection bounds: 65-135 (librosa range; not a filter — no files are skipped)
 - numpy array fix for librosa 0.11+ (`float(tempo[0])`)
 
 ## Testing

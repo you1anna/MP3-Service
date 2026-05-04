@@ -108,14 +108,6 @@ class AudioProcessor:
             if not self.dry_run:
                 bpm = self._process_bpm(file_path, bpm)
 
-            # Check BPM filter — skip files outside range
-            if bpm is not None:
-                min_bpm, max_bpm = self.config.bpm_range
-                if not self.bpm_detector.is_bpm_valid(bpm, min_bpm, max_bpm):
-                    self.logger.info(f"SKIPPED (BPM {bpm} outside {min_bpm}-{max_bpm}): {file_path.name}")
-                    self.stats['skipped'] += 1
-                    return
-
             if is_flac:
                 # FLAC: convert to AIFF, keep original
                 self._process_flac(file_path, artist, title, bpm)
