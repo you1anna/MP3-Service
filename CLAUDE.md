@@ -14,6 +14,8 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 - `src/bpm_detector.py` — librosa BPM detection (all formats)
 - `src/file_handler.py` — File operations, filename cleaning, copiedList.txt
 - `src/watcher.py` — watchdog real-time file watching
+- `src/ssd_archive.py` — optional move from local staging to external SSD
+- `src/rekordbox_xml.py` / `src/rekordbox_watcher.py` — Rekordbox XML feed and external-drive scanner
 - `src/config.py` — JSON config loader
 - `src/cli.py` — CLI argument parsing
 - `src/logger.py` — Logging setup
@@ -21,6 +23,7 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 
 ## Custom modifications (vs upstream)
 - FLAC→AIFF (16-bit/44.1kHz) conversion added to processor.py
+- FLAC originals are deleted only after successful AIFF conversion and final destination placement; if SSD placement fails, the temporary AIFF is removed and the FLAC remains for retry
 - BPM detection on all formats (was MP3-only)
 - BPM detection bounds: 65-135 (librosa range; not a filter — no files are skipped)
 - numpy array fix for librosa 0.11+ (`float(tempo[0])`)
@@ -39,4 +42,5 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 
 ## Paths
 - Source: `/Users/macmini/Soulseek Downloads/complete`
-- Destination: `/Users/macmini/Music/Processed`
+- Local staging: `/Users/macmini/Music/Processed`
+- SSD archive destination: `/Volumes/Extreme SSD/music`

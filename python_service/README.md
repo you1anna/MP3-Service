@@ -50,9 +50,10 @@ The audio pipeline and Rekordbox pipeline are separate:
 
 1. `main.py start --watch` processes Soulseek downloads.
    - MP3/M4A/WAV/AIFF files are cleaned and copied to `local_path`.
-   - FLAC files are converted to AIFF in `local_path`; the original FLAC is kept in the Soulseek complete folder.
+   - FLAC files are converted to AIFF in `local_path`; the original FLAC is deleted only after the AIFF reaches its final destination.
    - If `ssd_archive_path` is configured and its `/Volumes/<drive>` mount is present, the processed output is moved from `local_path` to the SSD.
-   - If the SSD is not mounted, the processed output remains in `local_path` so the audio pipeline does not fail.
+   - If `ssd_archive_path` is configured but the AIFF does not reach that SSD destination, the temporary local AIFF is removed, the original FLAC stays in the Soulseek complete folder, and the file is not added to `copiedList.txt`.
+   - For non-FLAC files, if the SSD is not mounted, the processed output remains in `local_path` so the audio pipeline does not fail.
 
 2. `rekordbox_watch.py` scans `external_watch_path` and appends new audio files to `rekordbox_xml_path`.
    - The first scan creates a baseline in `external_seen_file` and does not register existing files, to avoid flooding Rekordbox with the existing SSD library.

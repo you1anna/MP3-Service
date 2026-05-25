@@ -91,6 +91,11 @@ class AudioProcessor:
         Args:
             file_path: Path to audio file
         """
+        if str(file_path) in self.copied_files:
+            self.logger.info(f"SKIPPED (already processed): {file_path.name}")
+            self.stats['skipped'] += 1
+            return
+
         self.logger.info("")
         self.logger.info("-" * 63)
         self.logger.info(f"PROCESSING: {file_path.name}")
@@ -113,15 +118,20 @@ class AudioProcessor:
                 bpm = self._process_bpm(file_path, bpm)
 
             if is_flac:
-                # FLAC: convert to AIFF, keep original
-                self._process_flac(file_path, artist, title, bpm)
+                # FLAC: convert to AIFF, then remove original after final output succeeds
+                success = self._process_flac(file_path, artist, title, bpm)
             else:
                 # Non-FLAC: clean metadata/filename, move to Processed
-                self._process_standard(file_path, artist, title, bpm)
+                success = self._process_standard(file_path, artist, title, bpm)
+
+            if not success:
+                self.stats['errors'] += 1
+                return
 
             # Add to copied list
             if not self.dry_run:
                 self.file_handler.update_copied_list(self.config.base_path, file_path)
+                self.copied_files.add(str(file_path))
 
             self.logger.info(f"{'Would process' if self.dry_run else 'Successfully processed'}: {file_path.name}")
             self.stats['processed'] += 1
@@ -130,7 +140,7 @@ class AudioProcessor:
             self.logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
             self.stats['errors'] += 1
 
-    def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int] = None) -> None:
+    def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int] = None) -> bool:
         """Process a non-FLAC audio file: clean tags/filename, move to Processed."""
         # Extract artist/title from filename if missing
         if not artist or not title:
@@ -163,9 +173,12 @@ class AudioProcessor:
             final_dest = self.ssd_archiver.relocate(local_dest)
             # Register in Rekordbox XML library (no-op if not configured / fails safely)
             self.rekordbox_xml.register(final_dest, artist, title, bpm)
+            return True
 
-    def _process_flac(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int]) -> None:
-        """Process a FLAC file: convert to AIFF, copy tags, move AIFF to Processed, keep original."""
+        return False
+
+    def _process_flac(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int]) -> bool:
+        """Process a FLAC file: convert to AIFF, move output, then delete original."""
         # Extract artist/title from filename if missing from tags
         if not artist or not title:
             filename_artist, filename_title = self.tag_handler.extract_from_filename(file_path.name)
@@ -179,23 +192,20 @@ class AudioProcessor:
 
         if self.dry_run:
             self.logger.info(f"Would convert FLAC to AIFF: {file_path.name} -> {output_filename}")
-            return
+            return True
 
         # Convert FLAC to AIFF via ffmpeg
         aiff_dest = self.config.local_path / output_filename
         aiff_dest.parent.mkdir(parents=True, exist_ok=True)
 
         if not self._convert_flac_to_aiff(file_path, aiff_dest):
-            self.stats['errors'] += 1
-            self.stats['processed'] -= 1  # will be incremented by caller
-            return
+            return False
 
         # Copy tags (artist, title, BPM) to the new AIFF
         self.tag_handler.set_tags(aiff_dest, artist=artist, title=title, bpm=bpm)
         self.tag_handler.clear_extra_tags(aiff_dest)
 
         self.logger.info(f"Converted FLAC->AIFF: {file_path.name} -> {output_filename}")
-        self.logger.info(f"Original FLAC kept: {file_path}")
 
         # Also copy to network share if enabled
         if self.config.include_share and self.config.network_path:
@@ -203,8 +213,38 @@ class AudioProcessor:
 
         # Move to SSD if configured and mounted; otherwise stay local
         final_dest = self.ssd_archiver.relocate(aiff_dest)
+        if self.ssd_archiver.configured and not self._path_is_under(final_dest, self.ssd_archiver.archive_path):
+            self.logger.error(
+                f"FLAC output did not reach configured SSD destination; keeping original: {file_path}"
+            )
+            if aiff_dest.exists():
+                self.file_handler.delete_file(aiff_dest)
+            return False
+
         # Register in Rekordbox XML library (no-op if not configured / fails safely)
         self.rekordbox_xml.register(final_dest, artist, title, bpm)
+
+        if not final_dest.exists():
+            self.logger.error(f"Final FLAC output missing, keeping original: {final_dest}")
+            return False
+
+        if not self.file_handler.delete_file(file_path):
+            self.logger.error(f"Failed to remove original FLAC after processing: {file_path}")
+            return False
+
+        self.logger.info(f"Removed original FLAC after successful processing: {file_path}")
+        return True
+
+    @staticmethod
+    def _path_is_under(path: Path, parent: Optional[Path]) -> bool:
+        """Return True when path is inside parent."""
+        if parent is None:
+            return False
+        try:
+            path.resolve().relative_to(parent.resolve())
+            return True
+        except (OSError, ValueError):
+            return False
 
     def _convert_flac_to_aiff(self, input_path: Path, output_path: Path) -> bool:
         """Convert FLAC to 16-bit/44.1kHz AIFF using ffmpeg."""
@@ -282,7 +322,7 @@ class AudioProcessor:
                 self.logger.warning(f"Detected BPM out of range: {corrected_bpm}")
                 return corrected_bpm
 
-        # Detection failed — return tag BPM (even if out of range) for filtering
+        # Detection failed — return tag BPM (even if out of detection range)
         return current_bpm
 
     def _get_output_filename(self, file_path: Path, artist: Optional[str], title: Optional[str], override_ext: Optional[str] = None) -> str:

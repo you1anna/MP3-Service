@@ -30,6 +30,6 @@
   "external_poll_interval": 300,
   "external_seen_file": "",
   "external_skip_dirs": [],
-  "_ssd_archive_doc": "Optional. When set AND the volume is mounted, processed tracks are moved here from local_path. Path must live under /Volumes/<drive>/... so liveness can be checked. When the SSD is unplugged, tracks stay in local_path automatically.",
+  "_ssd_archive_doc": "Optional. When set AND the volume is mounted, processed tracks are moved here from local_path. Path must live under /Volumes/<drive>/... so liveness can be checked. For FLAC conversions, if the SSD final destination is unavailable, the temporary local AIFF is removed, the source FLAC is kept for retry, and copiedList is not updated.",
   "ssd_archive_path": ""
 }
