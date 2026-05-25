@@ -112,6 +112,51 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
             self.assertEqual(processor.stats["processed"], 0)
             self.assertEqual(processor.stats["skipped"], 1)
 
+    def test_process_all_removes_legacy_copied_flac_when_final_aiff_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.ssd_archive_path = Path(tmp) / "ssd" / "music"
+            config.ssd_archive_path.mkdir(parents=True)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            final = config.ssd_archive_path / "Artist - Title.aiff"
+            final.write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.ssd_archiver = SimpleNamespace(
+                configured=True,
+                archive_path=config.ssd_archive_path,
+            )
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            stats = processor.process_all()
+
+            self.assertFalse(source.exists())
+            self.assertTrue(final.exists())
+            self.assertEqual(stats["processed"], 0)
+            self.assertEqual(stats["errors"], 0)
+            self.assertEqual(stats["skipped"], 1)
+
+    def test_process_all_keeps_legacy_copied_flac_when_final_aiff_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.ssd_archive_path = Path(tmp) / "ssd" / "music"
+            config.ssd_archive_path.mkdir(parents=True)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            stats = processor.process_all()
+
+            self.assertTrue(source.exists())
+            self.assertEqual(stats["processed"], 0)
+            self.assertEqual(stats["errors"], 0)
+            self.assertEqual(stats["skipped"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

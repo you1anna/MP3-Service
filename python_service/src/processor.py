@@ -80,6 +80,7 @@ class AudioProcessor:
             if str(file_path) not in self.copied_files:
                 self.process_file(file_path)
             else:
+                self._cleanup_previously_processed_flac(file_path)
                 self.stats['skipped'] += 1
 
         return self.stats
@@ -234,6 +235,37 @@ class AudioProcessor:
 
         self.logger.info(f"Removed original FLAC after successful processing: {file_path}")
         return True
+
+    def _cleanup_previously_processed_flac(self, file_path: Path) -> None:
+        """Remove a copied-list FLAC only when its expected AIFF final output exists."""
+        if self.dry_run or file_path.suffix.lower() != '.flac' or not file_path.exists():
+            return
+
+        try:
+            artist, title, _ = self.tag_handler.get_tags(file_path)
+            output_filename = self._get_output_filename(
+                file_path,
+                artist,
+                title,
+                override_ext='.aiff',
+            )
+            candidates = []
+            if self.ssd_archiver.configured and self.ssd_archiver.archive_path:
+                candidates.append(self.ssd_archiver.archive_path / output_filename)
+            candidates.append(self.config.local_path / output_filename)
+
+            for candidate in candidates:
+                if candidate.exists():
+                    if self.file_handler.delete_file(file_path):
+                        self.logger.info(
+                            f"Removed previously processed FLAC after confirming output exists: {file_path}"
+                        )
+                    return
+        except Exception as e:
+            self.logger.error(
+                f"Error checking previously processed FLAC {file_path}: {e}",
+                exc_info=True,
+            )
 
     @staticmethod
     def _path_is_under(path: Path, parent: Optional[Path]) -> bool:

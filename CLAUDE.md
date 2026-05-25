@@ -24,6 +24,7 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 ## Custom modifications (vs upstream)
 - FLAC→AIFF (16-bit/44.1kHz) conversion added to processor.py
 - FLAC originals are deleted only after successful AIFF conversion and final destination placement; if SSD placement fails, the temporary AIFF is removed and the FLAC remains for retry
+- FLACs already in copiedList are cleaned up on startup only when the matching AIFF exists in the configured final destination
 - BPM detection on all formats (was MP3-only)
 - BPM detection bounds: 65-135 (librosa range; not a filter — no files are skipped)
 - numpy array fix for librosa 0.11+ (`float(tempo[0])`)
