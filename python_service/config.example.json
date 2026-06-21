@@ -25,11 +25,13 @@
   "log_level": "INFO",
   "_rekordbox_xml_path_doc": "Optional. Absolute path to the Rekordbox XML file processed tracks should be appended to. Configure the same path in Rekordbox > Preferences > Advanced > rekordbox xml > Imported Library. Leave unset to disable sync.",
   "rekordbox_xml_path": "",
-  "_external_watch_doc": "External drive watcher: registers new audio files appearing on an external drive in the same Rekordbox XML. First scan baselines existing files without registering them — only files that appear AFTER the baseline are registered.",
-  "external_watch_path": "/Volumes/Extreme SSD",
+  "_external_watch_doc": "External drive watcher: registers new audio files appearing on an external drive in the same Rekordbox XML. First scan baselines existing files without registering them — only files that appear AFTER the baseline are registered. Point this at the DJ-track archive (the ssd_archive_path dir), NOT the whole drive — pointing it at a drive that also holds a sample library will sweep tens of thousands of one-shots/loops into Rekordbox.",
+  "external_watch_path": "/Volumes/Extreme SSD/music",
   "external_poll_interval": 300,
   "external_seen_file": "",
   "external_skip_dirs": [],
+  "_external_max_new_per_scan_doc": "Anti-flood cap. If one scan finds more than this many new files it re-baselines instead of registering (a reorg changes every path, the watcher's identity key). 0 disables.",
+  "external_max_new_per_scan": 200,
   "_ssd_archive_doc": "Optional. When set AND the volume is mounted, processed tracks are moved here from local_path. Path must live under /Volumes/<drive>/... so liveness can be checked. For FLAC conversions, if the SSD final destination is unavailable, the temporary local AIFF is removed, the source FLAC is kept for retry, and copiedList is not updated.",
   "ssd_archive_path": ""
 }

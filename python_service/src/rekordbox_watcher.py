@@ -52,6 +52,11 @@ class ExternalDriveWatcher:
             config.external_skip_dirs
         )
         self.extensions = tuple(e.lower() for e in config.supported_extensions)
+        # Anti-flood: if a single scan turns up more than this many "new" files,
+        # it's almost certainly a move/reorg (paths are the identity key), not a
+        # genuine batch of new tracks. Re-baseline instead of mass-registering.
+        # 0 disables the cap.
+        self.max_new_per_scan: int = getattr(config, "external_max_new_per_scan", 200)
 
         self.seen: Set[str] = self._load_seen()
         self._mount_warned = False
@@ -96,29 +101,41 @@ class ExternalDriveWatcher:
                 "(they will NOT be registered in the XML)"
             )
 
+        # Collect everything not already seen, then decide in bulk. Deciding
+        # after counting is what lets the safety valve catch a reorg before it
+        # registers thousands of moved files.
+        unseen = [p for p in self._iter_audio_files(self.watch_root) if str(p) not in self.seen]
+        if not unseen:
+            return
+
+        # First-run baseline, or a suspiciously large batch (move/reorg): record
+        # the files as seen WITHOUT registering them in the XML.
+        over_cap = self.max_new_per_scan and len(unseen) > self.max_new_per_scan
+        if baseline or over_cap:
+            if over_cap and not baseline:
+                self.logger.warning(
+                    f"{len(unseen)} new files exceeds the safety cap of "
+                    f"{self.max_new_per_scan}; treating as a re-baseline and NOT "
+                    f"registering them. This usually means files were moved or "
+                    f"reorganised under {self.watch_root} (paths are the identity "
+                    f"key). Adjust external_max_new_per_scan if this was intentional."
+                )
+            for path in unseen:
+                self.seen.add(str(path))
+            self._persist_seen()
+            self.logger.info(f"baseline: {len(unseen)} file(s) recorded (not registered)")
+            return
+
         registered = 0
-        baselined = 0
-        for path in self._iter_audio_files(self.watch_root):
+        for path in unseen:
             try:
-                key = str(path)
-                if key in self.seen:
-                    continue
-
-                if baseline:
-                    self.seen.add(key)
-                    baselined += 1
-                    continue
-
                 self._register_one(path)
-                self.seen.add(key)
+                self.seen.add(str(path))
                 registered += 1
             except Exception as e:
                 self.logger.error(f"failed on {path}: {e}", exc_info=False)
 
-        if baseline and baselined > 0:
-            self.logger.info(f"baseline complete: {baselined} existing file(s) recorded")
-            self._persist_seen()
-        elif registered > 0:
+        if registered > 0:
             self.logger.info(f"registered {registered} new track(s)")
             self._persist_seen()
 

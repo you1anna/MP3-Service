@@ -168,6 +168,16 @@ class Config:
         return list(self._config.get('external_skip_dirs', []))
 
     @property
+    def external_max_new_per_scan(self) -> int:
+        """Anti-flood cap: max files a single scan may register before it treats
+        the batch as a move/reorg and re-baselines instead. 0 disables the cap.
+
+        Guards against a library reorganisation (which changes every path, the
+        watcher's identity key) mass-registering thousands of moved files.
+        """
+        return int(self._config.get('external_max_new_per_scan', 200))
+
+    @property
     def ssd_archive_path(self):
         """Destination directory on the external SSD for processed tracks.
 
