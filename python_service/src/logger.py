@@ -22,37 +22,35 @@ def setup_logger(
     Returns:
         Configured logger instance
     """
-    logger = logging.getLogger(name)
-    logger.setLevel(getattr(logging, level.upper()))
+    # Configure the ROOT logger so module loggers (get_logger(__name__)) propagate
+    # into the same handlers. Without this, only the named "MP3Service" logger
+    # writes to mp3_service.log; module-level errors fall through to stderr only.
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, level.upper()))
+    root_logger.handlers.clear()
 
-    # Remove existing handlers to avoid duplicates
-    logger.handlers.clear()
-
-    # Create formatter
     formatter = logging.Formatter(
         fmt='%(asctime)s %(levelname)-8s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    root_logger.addHandler(console_handler)
 
-    # File handler (if log file specified)
     if log_file:
         try:
-            # Ensure log directory exists
             log_file.parent.mkdir(parents=True, exist_ok=True)
-
             file_handler = logging.FileHandler(log_file, encoding='utf-8')
             file_handler.setLevel(getattr(logging, level.upper()))
             file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
+            root_logger.addHandler(file_handler)
         except Exception as e:
-            logger.error(f"Failed to create file handler: {e}")
+            root_logger.error(f"Failed to create file handler: {e}")
 
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, level.upper()))
     return logger
 
 
