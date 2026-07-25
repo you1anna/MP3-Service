@@ -63,6 +63,10 @@ class AudioProcessor:
         if not self.dry_run:
             self._ensure_directories()
 
+        # Move any files stranded locally by a prior SSD outage, now that it may be back
+        if not self.dry_run:
+            self.ssd_archiver.reconcile(self.config.local_path)
+
         # Clean up directories first
         if not self.dry_run:
             self.file_handler.remove_empty_directories(self.config.base_path)

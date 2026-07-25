@@ -67,6 +67,29 @@ class SSDArchiver:
             )
             return src
 
+    def reconcile(self, local_path: Path) -> int:
+        """Move any files stranded in local_path onto the SSD, now that it's mounted.
+
+        A file only stays in local_path when relocate() ran while the SSD was
+        unmounted. Nothing re-checks that later, so without this, files sit
+        in local staging forever even after the SSD reconnects. Returns the
+        number of files moved.
+        """
+        if not self.configured or not self.mounted or not local_path.exists():
+            return 0
+
+        moved = 0
+        for item in sorted(local_path.iterdir()):
+            if not item.is_file():
+                continue
+            if self.relocate(item) != item:
+                moved += 1
+
+        if moved:
+            self.logger.info(f"Reconciled {moved} file(s) stranded in local staging onto SSD")
+
+        return moved
+
     @staticmethod
     def _uniquify(target: Path) -> Path:
         """If target exists, append _1, _2, ... before the extension."""

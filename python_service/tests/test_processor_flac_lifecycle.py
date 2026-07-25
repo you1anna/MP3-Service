@@ -127,6 +127,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
             processor.ssd_archiver = SimpleNamespace(
                 configured=True,
                 archive_path=config.ssd_archive_path,
+                reconcile=lambda local_path: 0,
             )
             processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
 

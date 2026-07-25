@@ -115,9 +115,16 @@ class MP3Service:
             # Start watching
             self.watcher.start()
 
-            # Keep main thread alive
+            # Keep main thread alive, periodically checking whether the SSD
+            # has reconnected so files stranded in local staging get moved
+            # over (the watcher itself only reacts to new file events, so a
+            # remount alone wouldn't otherwise trigger relocation).
+            last_reconcile = time.monotonic()
             while self.running:
                 time.sleep(1)
+                if time.monotonic() - last_reconcile >= self.config.poll_interval:
+                    self.processor.ssd_archiver.reconcile(self.config.local_path)
+                    last_reconcile = time.monotonic()
 
         except ImportError:
             self.logger.error("watchdog library not installed. Install with: pip install watchdog")
