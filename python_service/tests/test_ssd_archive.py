@@ -78,6 +78,21 @@ class SSDArchiverReconcileTests(unittest.TestCase):
             self.assertEqual(moved, 0)
             self.assertTrue((local_path / "subdir").exists())
 
+    def test_reconcile_skips_hidden_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            local_path = tmp_path / "processed"
+            local_path.mkdir()
+            (local_path / ".DS_Store").write_bytes(b"junk")
+
+            archiver = self._make_archiver(tmp_path, mounted=True)
+
+            moved = archiver.reconcile(local_path)
+
+            self.assertEqual(moved, 0)
+            self.assertTrue((local_path / ".DS_Store").exists())
+            self.assertFalse((archiver.archive_path / ".DS_Store").exists())
+
     def test_reconcile_is_noop_when_local_path_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

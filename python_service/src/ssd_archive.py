@@ -80,7 +80,7 @@ class SSDArchiver:
 
         moved = 0
         for item in sorted(local_path.iterdir()):
-            if not item.is_file():
+            if not item.is_file() or item.name.startswith('.'):
                 continue
             if self.relocate(item) != item:
                 moved += 1
