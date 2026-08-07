@@ -87,6 +87,16 @@ class Config:
         return int(self._config['poll_interval'])
 
     @property
+    def sweep_interval(self) -> int:
+        """Seconds between full source rescans in watch mode.
+
+        A catch-all safety net, not the primary path: new files come in via
+        the watcher and SSD remounts trigger their own rescan, so this is
+        deliberately infrequent to keep the idle service cheap.
+        """
+        return int(self._config.get('sweep_interval', 900))
+
+    @property
     def include_share(self) -> bool:
         """Check if network share copying is enabled."""
         return self._config.get('include_share', False)
@@ -208,6 +218,7 @@ def create_default_config() -> Dict[str, Any]:
         "network_path": "",
         "desktop_path": "",
         "poll_interval": 40,
+        "sweep_interval": 900,
         "include_share": False,
         "supported_extensions": [
             ".mp3",

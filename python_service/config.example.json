@@ -5,6 +5,7 @@
   "network_path": "",
   "desktop_path": "",
   "poll_interval": 40,
+  "sweep_interval": 900,
   "include_share": false,
   "supported_extensions": [
     ".mp3",

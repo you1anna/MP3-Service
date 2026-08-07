@@ -24,7 +24,9 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 ## Custom modifications (vs upstream)
 - FLAC→AIFF (16-bit/44.1kHz) conversion added to processor.py
 - FLAC originals are deleted only after successful AIFF conversion and final destination placement; if SSD placement fails, the temporary AIFF is removed and the FLAC remains for retry
-- FLACs already in copiedList are cleaned up on startup only when the matching AIFF exists in the configured final destination
+- Source files already in copiedList (any format) are cleaned up only when the matching output exists in the configured final destination
+- `src/maintenance.py` self-heals watch mode: staging reconcile each poll tick, a full source rescan on SSD remount, and an infrequent sweep (`sweep_interval`, default 900s) as a catch-all. Files that keep failing are parked after `AudioProcessor.MAX_RETRY_ATTEMPTS` (3) and un-parked on remount or restart
+- SSD mount detection uses `os.path.ismount`, not `exists()` — a stale `/Volumes/<drive>` directory must not be treated as mounted
 - BPM detection on all formats (was MP3-only)
 - BPM detection bounds: 65-135 (librosa range; not a filter — no files are skipped)
 - numpy array fix for librosa 0.11+ (`float(tempo[0])`)

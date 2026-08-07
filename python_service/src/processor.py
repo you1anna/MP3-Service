@@ -1,6 +1,7 @@
 """Main audio file processor."""
 
 import subprocess
+import threading
 from pathlib import Path
 from typing import Optional, Dict
 from .config import Config
@@ -16,6 +17,11 @@ class AudioProcessor:
     """Main processor for audio files."""
 
     VERSION = "v2.0.0"
+
+    # A file that keeps failing is retried this many times per rescan cycle
+    # before being parked, so a permanently broken track can't spin the
+    # periodic sweep. Cleared by reset_retry_state() on SSD remount.
+    MAX_RETRY_ATTEMPTS = 3
 
     def __init__(self, config: Config, dry_run: bool = False):
         """
@@ -44,6 +50,35 @@ class AudioProcessor:
         # Load copied files list
         self.copied_files = self.file_handler.load_copied_list(config.base_path)
 
+        # The watcher thread and the maintenance rescan can both reach
+        # process_file(), so serialise them to keep one file from being
+        # converted and deleted twice.
+        self._lock = threading.RLock()
+        self._failed_attempts: Dict[str, int] = {}
+
+    def reset_retry_state(self) -> None:
+        """Forget per-file failure counts, e.g. once the SSD is back."""
+        with self._lock:
+            if self._failed_attempts:
+                self.logger.info(
+                    f"Clearing retry state for {len(self._failed_attempts)} file(s)"
+                )
+            self._failed_attempts.clear()
+
+    def _record_failure(self, file_path: Path) -> None:
+        """Count a failed attempt and note when a file is being parked."""
+        key = str(file_path)
+        attempts = self._failed_attempts.get(key, 0) + 1
+        self._failed_attempts[key] = attempts
+        if attempts == self.MAX_RETRY_ATTEMPTS:
+            self.logger.warning(
+                f"Parking {file_path.name} after {attempts} failed attempts; "
+                "will retry on SSD reconnect or service restart"
+            )
+
+    def _retries_exhausted(self, file_path: Path) -> bool:
+        return self._failed_attempts.get(str(file_path), 0) >= self.MAX_RETRY_ATTEMPTS
+
     def process_all(self) -> Dict[str, int]:
         """
         Process all audio files in base directory.
@@ -51,6 +86,10 @@ class AudioProcessor:
         Returns:
             Statistics dictionary with counts
         """
+        with self._lock:
+            return self._process_all()
+
+    def _process_all(self) -> Dict[str, int]:
         # Reset statistics
         self.stats = {'processed': 0, 'errors': 0, 'skipped': 0}
 
@@ -81,11 +120,13 @@ class AudioProcessor:
 
         # Process each file
         for file_path in audio_files:
-            if str(file_path) not in self.copied_files:
-                self.process_file(file_path)
-            else:
-                self._cleanup_previously_processed_flac(file_path)
+            if str(file_path) in self.copied_files:
+                self._cleanup_previously_processed_source(file_path)
                 self.stats['skipped'] += 1
+            elif self._retries_exhausted(file_path):
+                self.stats['skipped'] += 1
+            else:
+                self.process_file(file_path)
 
         return self.stats
 
@@ -96,6 +137,10 @@ class AudioProcessor:
         Args:
             file_path: Path to audio file
         """
+        with self._lock:
+            self._process_file(file_path)
+
+    def _process_file(self, file_path: Path) -> None:
         if str(file_path) in self.copied_files:
             self.logger.info(f"SKIPPED (already processed): {file_path.name}")
             self.stats['skipped'] += 1
@@ -130,6 +175,7 @@ class AudioProcessor:
                 success = self._process_standard(file_path, artist, title, bpm)
 
             if not success:
+                self._record_failure(file_path)
                 self.stats['errors'] += 1
                 return
 
@@ -138,11 +184,13 @@ class AudioProcessor:
                 self.file_handler.update_copied_list(self.config.base_path, file_path)
                 self.copied_files.add(str(file_path))
 
+            self._failed_attempts.pop(str(file_path), None)
             self.logger.info(f"{'Would process' if self.dry_run else 'Successfully processed'}: {file_path.name}")
             self.stats['processed'] += 1
 
         except Exception as e:
             self.logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
+            self._record_failure(file_path)
             self.stats['errors'] += 1
 
     def _process_standard(self, file_path: Path, artist: Optional[str], title: Optional[str], bpm: Optional[int] = None) -> bool:
@@ -240,18 +288,28 @@ class AudioProcessor:
         self.logger.info(f"Removed original FLAC after successful processing: {file_path}")
         return True
 
-    def _cleanup_previously_processed_flac(self, file_path: Path) -> None:
-        """Remove a copied-list FLAC only when its expected AIFF final output exists."""
-        if self.dry_run or file_path.suffix.lower() != '.flac' or not file_path.exists():
+    def _cleanup_previously_processed_source(self, file_path: Path) -> None:
+        """Remove a copied-list source file only when its final output exists.
+
+        Applies to every format, not just FLAC. A source file that reappears
+        after being processed (a re-download, say) is blocked from
+        reprocessing by its copiedList entry, so without this it sits in the
+        source directory indefinitely. Deleting only on a confirmed output
+        keeps the invariant that nothing is removed until it is safely
+        archived, which is also why an unreachable SSD leaves the file alone.
+        """
+        if self.dry_run or not file_path.exists():
             return
 
         try:
             artist, title, _ = self.tag_handler.get_tags(file_path)
+            is_flac = file_path.suffix.lower() == '.flac'
             output_filename = self._get_output_filename(
                 file_path,
                 artist,
                 title,
-                override_ext='.aiff',
+                override_ext='.aiff' if is_flac else None,
+                log=False,
             )
             candidates = []
             if self.ssd_archiver.configured and self.ssd_archiver.archive_path:
@@ -262,12 +320,12 @@ class AudioProcessor:
                 if candidate.exists():
                     if self.file_handler.delete_file(file_path):
                         self.logger.info(
-                            f"Removed previously processed FLAC after confirming output exists: {file_path}"
+                            f"Removed previously processed source after confirming output exists: {file_path}"
                         )
                     return
         except Exception as e:
             self.logger.error(
-                f"Error checking previously processed FLAC {file_path}: {e}",
+                f"Error checking previously processed source {file_path}: {e}",
                 exc_info=True,
             )
 
@@ -361,7 +419,7 @@ class AudioProcessor:
         # Detection failed — return tag BPM (even if out of detection range)
         return current_bpm
 
-    def _get_output_filename(self, file_path: Path, artist: Optional[str], title: Optional[str], override_ext: Optional[str] = None) -> str:
+    def _get_output_filename(self, file_path: Path, artist: Optional[str], title: Optional[str], override_ext: Optional[str] = None, log: bool = True) -> str:
         """
         Determine output filename based on tags or cleaned original name.
 
@@ -370,6 +428,8 @@ class AudioProcessor:
             artist: Artist name
             title: Track title
             override_ext: Override the file extension (e.g. '.aiff' for FLAC conversion)
+            log: Announce the resolved name; off when only probing for an
+                existing output, where "New filename" would be misleading
 
         Returns:
             Output filename
@@ -381,9 +441,10 @@ class AudioProcessor:
             if '.' not in artist:
                 tag_filename = f"{artist} - {title}"
                 cleaned = self.file_handler.clean_filename(tag_filename, extension)
-                self.logger.info(f"New filename: {cleaned}")
+                if log:
+                    self.logger.info(f"New filename: {cleaned}")
                 return cleaned
-            else:
+            elif log:
                 self.logger.info("Using original filename as Artist tag contains '.'")
 
         # Fall back to cleaned original filename

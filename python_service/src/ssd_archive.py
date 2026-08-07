@@ -5,6 +5,7 @@ is returned unchanged so the audio pipeline degrades gracefully to keeping
 files on the local disk. The pipeline must NEVER fail because of SSD I/O.
 """
 
+import os
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,19 @@ from .logger import get_logger
 
 
 _VOLUMES = Path("/Volumes")
+
+
+def _is_mount_point(path: Path) -> bool:
+    """True only when path is a real mount point, not just an existing directory.
+
+    macOS can leave a stale /Volumes/<drive> directory behind after an
+    ungraceful eject. An exists() check would call that mounted and archive
+    tracks onto the boot disk under a path that looks like the SSD.
+    """
+    try:
+        return os.path.ismount(path)
+    except OSError:
+        return False
 
 
 class SSDArchiver:
@@ -39,7 +53,7 @@ class SSDArchiver:
 
     @property
     def mounted(self) -> bool:
-        return self._mount_root is not None and self._mount_root.exists()
+        return self._mount_root is not None and _is_mount_point(self._mount_root)
 
     def relocate(self, src: Path) -> Path:
         """Move src to the SSD archive path. Returns final path (src on any failure)."""
