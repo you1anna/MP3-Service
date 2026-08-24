@@ -266,20 +266,30 @@ class AudioProcessor:
 
         # Move to SSD if configured and mounted; otherwise stay local
         final_dest = self.ssd_archiver.relocate(aiff_dest)
-        if self.ssd_archiver.configured and not self._path_is_under(final_dest, self.ssd_archiver.archive_path):
-            self.logger.error(
-                f"FLAC output did not reach configured SSD destination; keeping original: {file_path}"
-            )
-            if aiff_dest.exists():
-                self.file_handler.delete_file(aiff_dest)
+
+        if not final_dest.exists():
+            self.logger.error(f"Final FLAC output missing, keeping original: {final_dest}")
             return False
 
         # Register in Rekordbox XML library (no-op if not configured / fails safely)
         self.rekordbox_xml.register(final_dest, artist, title, bpm)
 
-        if not final_dest.exists():
-            self.logger.error(f"Final FLAC output missing, keeping original: {final_dest}")
-            return False
+        reached_ssd = (
+            not self.ssd_archiver.configured
+            or self._path_is_under(final_dest, self.ssd_archiver.archive_path)
+        )
+
+        if not reached_ssd:
+            # The conversion succeeded; only the archive hop is outstanding. Local
+            # staging is a legitimate resting place - reconcile() sweeps it onto the
+            # SSD once the volume is back, and the source is cleaned up then. Treat
+            # this as done so the file is recorded as processed rather than retried,
+            # which would redo BPM detection and re-run ffmpeg on every sweep.
+            self.logger.warning(
+                f"SSD unavailable; {final_dest.name} is staged locally and will be "
+                f"archived when it reconnects. Keeping original: {file_path}"
+            )
+            return True
 
         if not self.file_handler.delete_file(file_path):
             self.logger.error(f"Failed to remove original FLAC after processing: {file_path}")
@@ -314,7 +324,11 @@ class AudioProcessor:
             candidates = []
             if self.ssd_archiver.configured and self.ssd_archiver.archive_path:
                 candidates.append(self.ssd_archiver.archive_path / output_filename)
-            candidates.append(self.config.local_path / output_filename)
+            # A FLAC source is only safe to delete once its AIFF is on the SSD. A
+            # locally staged copy means the archive hop is still outstanding, so it
+            # does not authorise removing the last lossless copy.
+            if not (is_flac and self.ssd_archiver.configured):
+                candidates.append(self.config.local_path / output_filename)
 
             for candidate in candidates:
                 if candidate.exists():

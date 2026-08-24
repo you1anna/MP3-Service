@@ -1,11 +1,10 @@
 """Periodic maintenance for watch mode.
 
 The file watcher only reacts to new filesystem events, so work deferred by an
-SSD outage has no way to resume on its own: a rolled-back FLAC stays in the
-source directory (deliberately not marked as copied), and a copied-list source
-whose output could not be confirmed stays put too. Neither will ever emit
-another watchdog event, so before this existed they sat there until the
-service was restarted.
+SSD outage has no way to resume on its own: a converted AIFF sits in local
+staging waiting for the archive hop, and the source file it came from stays
+put until that hop is confirmed. Neither will ever emit another watchdog
+event, so before this existed they sat there until the service was restarted.
 
 This scheduler closes that gap on three levels, cheapest first:
 

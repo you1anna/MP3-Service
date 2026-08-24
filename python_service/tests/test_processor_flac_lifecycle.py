@@ -66,7 +66,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
             self.assertEqual(processor.stats["processed"], 0)
             self.assertEqual(processor.stats["errors"], 1)
 
-    def test_flac_source_is_kept_when_configured_ssd_move_does_not_reach_archive(self):
+    def test_unreachable_ssd_stages_aiff_locally_and_keeps_flac_without_retrying(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
@@ -88,11 +88,78 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
 
             processor.process_file(source)
 
+            # The lossless source survives until the AIFF is actually on the SSD...
             self.assertTrue(source.exists())
-            self.assertFalse((config.local_path / "Artist - Title.aiff").exists())
-            self.assertEqual((config.base_path / "copiedList.txt").read_text(), "")
-            self.assertEqual(processor.stats["processed"], 0)
-            self.assertEqual(processor.stats["errors"], 1)
+            # ...but the converted output is staged, not destroyed. reconcile()
+            # moves it across once the volume reconnects.
+            self.assertTrue((config.local_path / "Artist - Title.aiff").exists())
+            # Recorded as processed so the next sweep does not redo BPM detection
+            # and ffmpeg on a file whose only outstanding step is the archive hop.
+            self.assertIn(str(source), (config.base_path / "copiedList.txt").read_text())
+            self.assertEqual(processor.stats["processed"], 1)
+            self.assertEqual(processor.stats["errors"], 0)
+
+    def test_process_all_keeps_flac_when_aiff_is_only_staged_locally(self):
+        """A locally staged AIFF must not authorise deleting the last lossless copy."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.ssd_archive_path = Path(tmp) / "ssd" / "music"
+            config.ssd_archive_path.mkdir(parents=True)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            staged = config.local_path / "Artist - Title.aiff"
+            staged.write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.ssd_archiver = SimpleNamespace(
+                configured=True,
+                archive_path=config.ssd_archive_path,
+                reconcile=lambda local_path: 0,
+            )
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            stats = processor.process_all()
+
+            self.assertTrue(source.exists())
+            self.assertTrue(staged.exists())
+            self.assertEqual(stats["errors"], 0)
+            self.assertEqual(stats["skipped"], 1)
+
+    def test_process_all_removes_flac_once_reconcile_lands_the_aiff_on_the_ssd(self):
+        """The deferred path closes: SSD returns -> reconcile moves -> source cleaned up."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.ssd_archive_path = Path(tmp) / "ssd" / "music"
+            config.ssd_archive_path.mkdir(parents=True)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            staged = config.local_path / "Artist - Title.aiff"
+            staged.write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            def reconnected_reconcile(local_path):
+                moved = 0
+                for item in sorted(Path(local_path).iterdir()):
+                    if item.is_file() and not item.name.startswith("."):
+                        item.rename(config.ssd_archive_path / item.name)
+                        moved += 1
+                return moved
+
+            processor = AudioProcessor(config)
+            processor.ssd_archiver = SimpleNamespace(
+                configured=True,
+                archive_path=config.ssd_archive_path,
+                reconcile=reconnected_reconcile,
+            )
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            stats = processor.process_all()
+
+            self.assertTrue((config.ssd_archive_path / "Artist - Title.aiff").exists())
+            self.assertFalse(staged.exists())
+            self.assertFalse(source.exists())
+            self.assertEqual(stats["errors"], 0)
 
     def test_process_file_skips_paths_already_in_copied_list(self):
         with tempfile.TemporaryDirectory() as tmp:
