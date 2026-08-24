@@ -77,7 +77,7 @@ class ProcessorRetryCapTests(unittest.TestCase):
 
             processor = _flac_processor_that_always_fails(config)
             processor.process_all()
-            self.assertEqual(processor._failed_attempts.get(str(source)), 1)
+            self.assertEqual(processor._failed_attempts.get(processor.file_handler.copied_key(source)), 1)
 
             processor.tag_handler.set_tags = lambda *args, **kwargs: None
             processor.tag_handler.clear_extra_tags = lambda *args, **kwargs: None
@@ -87,7 +87,7 @@ class ProcessorRetryCapTests(unittest.TestCase):
 
             processor.process_all()
 
-            self.assertNotIn(str(source), processor._failed_attempts)
+            self.assertNotIn(processor.file_handler.copied_key(source), processor._failed_attempts)
 
 
 class ProcessorCopiedSourceCleanupTests(unittest.TestCase):

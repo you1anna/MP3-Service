@@ -67,7 +67,7 @@ class AudioProcessor:
 
     def _record_failure(self, file_path: Path) -> None:
         """Count a failed attempt and note when a file is being parked."""
-        key = str(file_path)
+        key = self.file_handler.copied_key(file_path)
         attempts = self._failed_attempts.get(key, 0) + 1
         self._failed_attempts[key] = attempts
         if attempts == self.MAX_RETRY_ATTEMPTS:
@@ -77,7 +77,7 @@ class AudioProcessor:
             )
 
     def _retries_exhausted(self, file_path: Path) -> bool:
-        return self._failed_attempts.get(str(file_path), 0) >= self.MAX_RETRY_ATTEMPTS
+        return self._failed_attempts.get(self.file_handler.copied_key(file_path), 0) >= self.MAX_RETRY_ATTEMPTS
 
     def process_all(self) -> Dict[str, int]:
         """
@@ -120,7 +120,7 @@ class AudioProcessor:
 
         # Process each file
         for file_path in audio_files:
-            if str(file_path) in self.copied_files:
+            if self.file_handler.copied_key(file_path) in self.copied_files:
                 self._cleanup_previously_processed_source(file_path)
                 self.stats['skipped'] += 1
             elif self._retries_exhausted(file_path):
@@ -141,7 +141,7 @@ class AudioProcessor:
             self._process_file(file_path)
 
     def _process_file(self, file_path: Path) -> None:
-        if str(file_path) in self.copied_files:
+        if self.file_handler.copied_key(file_path) in self.copied_files:
             self.logger.info(f"SKIPPED (already processed): {file_path.name}")
             self.stats['skipped'] += 1
             return
@@ -182,9 +182,9 @@ class AudioProcessor:
             # Add to copied list
             if not self.dry_run:
                 self.file_handler.update_copied_list(self.config.base_path, file_path)
-                self.copied_files.add(str(file_path))
+                self.copied_files.add(self.file_handler.copied_key(file_path))
 
-            self._failed_attempts.pop(str(file_path), None)
+            self._failed_attempts.pop(self.file_handler.copied_key(file_path), None)
             self.logger.info(f"{'Would process' if self.dry_run else 'Successfully processed'}: {file_path.name}")
             self.stats['processed'] += 1
 

@@ -85,6 +85,23 @@ class FileHandler:
             self.logger.error(f"Error getting audio files: {e}")
             return []
 
+    @staticmethod
+    def copied_key(file_path: Path) -> str:
+        """Canonical identity for a source file in the copied list.
+
+        The watcher and the directory sweep hand out different strings for the
+        same file: FSEvents reports the path with symlinks already resolved,
+        while the sweep builds paths from the configured base_path, which still
+        goes through the /Users/macmini -> /Users/macbookair migration symlink.
+        Comparing the raw strings lets a file recorded via one route go
+        unrecognised via the other, so it gets processed a second time and its
+        output lands beside the first as a _1 duplicate.
+        """
+        try:
+            return str(Path(file_path).resolve())
+        except OSError:
+            return str(file_path)
+
     def load_copied_list(self, base_path: Path) -> set:
         """
         Load list of previously copied files.
@@ -104,7 +121,9 @@ class FileHandler:
 
         try:
             with open(list_file, 'r', encoding='utf-8') as f:
-                return set(line.strip() for line in f if line.strip())
+                # Normalise on read so entries written before this, or via the
+                # other path form, still match.
+                return {self.copied_key(Path(line.strip())) for line in f if line.strip()}
         except Exception as e:
             self.logger.error(f"Error loading copied list: {e}")
             return set()
@@ -120,9 +139,10 @@ class FileHandler:
         list_file = base_path / self.copied_list_file
 
         try:
+            key = self.copied_key(file_path)
             with open(list_file, 'a', encoding='utf-8') as f:
-                f.write(f"{file_path}\n")
-            self.copied_files.add(str(file_path))
+                f.write(f"{key}\n")
+            self.copied_files.add(key)
         except Exception as e:
             self.logger.error(f"Error updating copied list: {e}")
 

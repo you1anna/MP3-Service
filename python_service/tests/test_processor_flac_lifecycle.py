@@ -225,6 +225,40 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
             self.assertEqual(stats["errors"], 0)
             self.assertEqual(stats["skipped"], 1)
 
+    def test_copied_list_matches_across_symlinked_path_forms(self):
+        """The watcher and the sweep name the same file differently.
+
+        FSEvents delivers the symlink-resolved path; the sweep builds paths from
+        the configured base_path. If copiedList keys are raw strings, a file
+        recorded via one route is invisible to the other and gets reprocessed,
+        landing a _1 duplicate next to the original output.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            real = Path(tmp) / "real"
+            real.mkdir()
+            link = Path(tmp) / "link"
+            link.symlink_to(real)
+
+            config = DummyConfig(Path(tmp))
+            config.base_path = real / "complete"
+            config.base_path.mkdir()
+
+            via_real = config.base_path / "Artist - Title.flac"
+            via_real.write_bytes(b"flac")
+            via_link = link / "complete" / "Artist - Title.flac"
+            self.assertNotEqual(str(via_real), str(via_link))
+
+            processor = AudioProcessor(config)
+            processor.file_handler.update_copied_list(config.base_path, via_link)
+            processor.copied_files = processor.file_handler.load_copied_list(config.base_path)
+
+            # Recorded via the symlinked form, looked up via the real form.
+            self.assertIn(processor.file_handler.copied_key(via_real), processor.copied_files)
+
+            processor.process_file(via_real)
+            self.assertEqual(processor.stats["skipped"], 1)
+            self.assertEqual(processor.stats["processed"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
