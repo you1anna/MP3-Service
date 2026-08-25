@@ -282,6 +282,10 @@ def create_default_config() -> Dict[str, Any]:
         "backup_before_delete": False,
         "backup_path": "",
         "file_stability_wait": 2,
-        "log_file": "mp3_service.log",
-        "log_level": "INFO"
+        "log_file": "",
+        "log_level": "INFO",
+        # Written explicitly even though it matches the default: this is the
+        # setting that decides whether lossless originals are destroyed, so an
+        # inited config should never leave it implicit.
+        "keep_flac_sources": True
     }

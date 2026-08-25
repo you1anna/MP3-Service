@@ -93,10 +93,15 @@ def machine_report(config) -> List[Finding]:
             findings.append(("ok", f"SSD archive mounted: {archive}"))
         else:
             staged = _staged_count(config.local_path)
+            # Deliberately not "waiting". On a machine that keeps its sources,
+            # local_path is a perfectly good final destination and those files
+            # are finished - they are simply also eligible for archiving if the
+            # drive is ever attached.
             findings.append((
                 "warn",
-                f"SSD archive configured but {mount_root} is not mounted; "
-                f"{staged} file(s) waiting in local staging for it to return",
+                f"SSD archive {mount_root} is not mounted; output stays in "
+                f"{config.local_path} and moves across if the drive is attached "
+                f"({staged} file(s) there now)",
             ))
 
     # --- Rekordbox ----------------------------------------------------
