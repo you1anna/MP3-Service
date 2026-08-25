@@ -64,6 +64,18 @@ class MP3Service:
         if self.config.include_share and self.config.network_path:
             self.logger.info(f"Network Path: {self.config.network_path}")
 
+        # The two hosts differ only by config, so record which branch this one
+        # took. Without it a log tells you nothing about why a FLAC did or did
+        # not survive. `main.py doctor` prints the same report.
+        from src.diagnostics import machine_report
+        for level, message in machine_report(self.config):
+            if level == 'fail':
+                self.logger.error(f"Config: {message}")
+            elif level == 'warn':
+                self.logger.warning(f"Config: {message}")
+            else:
+                self.logger.info(f"Config: {message}")
+
         if self.dry_run:
             self.logger.warning("DRY-RUN: No files will be modified or moved")
 
@@ -172,6 +184,7 @@ Examples:
   %(prog)s start --watch            Use file watching instead of polling
   %(prog)s test                     Test configuration and preview files
   %(prog)s validate                 Validate configuration file
+  %(prog)s doctor                   Report this machine's resolved config
   %(prog)s init                     Create default configuration file
         """
     )
@@ -244,6 +257,17 @@ Examples:
         help='Preview changes without modifying files'
     )
 
+    # Doctor command
+    doctor_parser = subparsers.add_parser(
+        'doctor',
+        help='Report how this machine resolves the config and what it implies'
+    )
+    doctor_parser.add_argument(
+        '--config', '-c',
+        default='config.json',
+        help='Path to configuration file'
+    )
+
     # Status command
     status_parser = subparsers.add_parser('status', help='Show service status and configuration')
     status_parser.add_argument(
@@ -271,6 +295,9 @@ Examples:
 
         elif args.command == 'test':
             cli.test_config(args.config)
+
+        elif args.command == 'doctor':
+            cli.doctor(args.config)
 
         elif args.command == 'status':
             cli.show_status(args.config)

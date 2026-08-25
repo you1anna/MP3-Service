@@ -291,6 +291,14 @@ class AudioProcessor:
             )
             return True
 
+        if self.config.keep_flac_sources:
+            # This machine has no archive the AIFF could be considered safe in,
+            # so the source FLAC stays put as the lossless copy of record.
+            self.logger.info(
+                f"Kept original FLAC (keep_flac_sources): {file_path.name}"
+            )
+            return True
+
         if not self.file_handler.delete_file(file_path):
             self.logger.error(f"Failed to remove original FLAC after processing: {file_path}")
             return False
@@ -307,8 +315,19 @@ class AudioProcessor:
         source directory indefinitely. Deleting only on a confirmed output
         keeps the invariant that nothing is removed until it is safely
         archived, which is also why an unreachable SSD leaves the file alone.
+
+        FLAC sources are exempt entirely when keep_flac_sources is set: on a
+        machine with no archive drive there is nowhere safer for them to be.
         """
         if self.dry_run or not file_path.exists():
+            return
+
+        if file_path.suffix.lower() == '.flac' and self.config.keep_flac_sources:
+            # Deliberately checked before anything else. This route deletes a
+            # source purely on the strength of an output file already existing,
+            # with no conversion involved, so on a keep_flac_sources machine it
+            # would quietly clear out every lossless original the service had
+            # ever converted on its very next sweep.
             return
 
         try:

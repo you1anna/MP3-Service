@@ -6,6 +6,23 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+def expand_path(value: str) -> Path:
+    """Turn a configured path string into a usable absolute-ish Path.
+
+    config.json is gitignored, so each machine carries its own - but the
+    same *shape* of config should work on either host. Expanding `~` and
+    environment variables lets one file say "~/Music/Processed" and mean
+    the right thing on both, instead of hard-coding a home directory and
+    relying on the /Users/macmini -> /Users/macbookair migration symlink.
+
+    Without this, Path("~/Music/Processed") is a *relative* path and
+    _ensure_directories() happily creates a directory literally named "~"
+    inside the service's working directory - which is exactly what
+    config.example.json would have done.
+    """
+    return Path(os.path.expandvars(str(value))).expanduser()
+
+
 class Config:
     """Handles loading and accessing configuration settings."""
 
@@ -62,24 +79,24 @@ class Config:
     @property
     def base_path(self) -> Path:
         """Get base path for file monitoring."""
-        return Path(self._config['base_path'])
+        return expand_path(self._config['base_path'])
 
     @property
     def local_path(self) -> Path:
         """Get local path for processed files."""
-        return Path(self._config['local_path'])
+        return expand_path(self._config['local_path'])
 
     @property
     def network_path(self) -> Path:
         """Get network path for sharing files."""
         path = self._config.get('network_path')
-        return Path(path) if path else None
+        return expand_path(path) if path else None
 
     @property
     def desktop_path(self) -> Path:
         """Get desktop path."""
         path = self._config.get('desktop_path')
-        return Path(path) if path else None
+        return expand_path(path) if path else None
 
     @property
     def poll_interval(self) -> int:
@@ -116,8 +133,15 @@ class Config:
 
     @property
     def log_file(self) -> Path:
-        """Get log file path."""
-        return Path(self._config.get('log_file', 'mp3_service.log'))
+        """Get log file path.
+
+        Defaults beside the config file (the pattern external_seen_file
+        already uses) so a machine needs no absolute path here at all.
+        """
+        path = self._config.get('log_file')
+        if not path:
+            return Path(self.config_path).resolve().parent / 'mp3_service.log'
+        return expand_path(path)
 
     @property
     def log_level(self) -> str:
@@ -133,7 +157,7 @@ class Config:
     def backup_path(self) -> Path:
         """Get backup path for original files."""
         path = self._config.get('backup_path')
-        return Path(path) if path else None
+        return expand_path(path) if path else None
 
     @property
     def file_stability_wait(self) -> int:
@@ -148,12 +172,12 @@ class Config:
         Preferences > Advanced > rekordbox xml > database file path.
         """
         path = self._config.get('rekordbox_xml_path')
-        return Path(path) if path else None
+        return expand_path(path) if path else None
 
     @property
     def external_watch_path(self) -> Path:
         """Root path of the external drive to watch for new audio files."""
-        return Path(self._config.get('external_watch_path', '/Volumes/Extreme SSD'))
+        return expand_path(self._config.get('external_watch_path', '/Volumes/Extreme SSD'))
 
     @property
     def external_poll_interval(self) -> int:
@@ -170,7 +194,7 @@ class Config:
         """
         default = Path(self.config_path).resolve().parent / 'external_seen.txt'
         path = self._config.get('external_seen_file')
-        return Path(path) if path else default
+        return expand_path(path) if path else default
 
     @property
     def external_skip_dirs(self) -> list:
@@ -188,6 +212,29 @@ class Config:
         return int(self._config.get('external_max_new_per_scan', 200))
 
     @property
+    def keep_flac_sources(self) -> bool:
+        """Keep the source FLAC after its AIFF reaches its final destination.
+
+        Deleting the source is only defensible on a machine where the AIFF
+        lands somewhere that is itself an archive - the Mac mini's external
+        SSD. On a machine with no archive drive the FLAC sitting in the
+        source directory IS the only lossless copy, and a 16/44.1 AIFF is
+        not a replacement for a 24/96 FLAC.
+
+        This is a deliberate per-machine setting rather than something
+        derived from whether ssd_archive_path happens to be set. An SSD
+        that is merely absent must never change the answer: before this
+        existed, clearing ssd_archive_path silently switched the service
+        into deleting every lossless original it had already converted.
+        """
+        return bool(self._config.get('keep_flac_sources', True))
+
+    @property
+    def deletes_flac_sources_without_an_archive(self) -> bool:
+        """True for the one configuration that can destroy lossless originals."""
+        return not self.keep_flac_sources and self.ssd_archive_path is None
+
+    @property
     def ssd_archive_path(self):
         """Destination directory on the external SSD for processed tracks.
 
@@ -198,7 +245,7 @@ class Config:
         derived for liveness checks.
         """
         path = self._config.get('ssd_archive_path')
-        return Path(path) if path else None
+        return expand_path(path) if path else None
 
     def __repr__(self) -> str:
         """String representation of configuration."""

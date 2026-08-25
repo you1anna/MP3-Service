@@ -21,12 +21,17 @@ class DummyConfig:
         self.backup_before_delete = False
         self.backup_path = None
         self.bpm_range = (65, 135)
+        # Mirrors the production default. Tests that pin the SSD gate or the
+        # Mac mini's delete-after-archive contract set this to False explicitly,
+        # so the stub can never drift from what Config actually defaults to.
+        self.keep_flac_sources = True
 
 
 class ProcessorFlacLifecycleTests(unittest.TestCase):
     def test_flac_source_is_deleted_after_successful_final_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             source = config.base_path / "Artist - Title.flac"
             source.write_bytes(b"flac")
 
@@ -69,6 +74,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
     def test_unreachable_ssd_stages_aiff_locally_and_keeps_flac_without_retrying(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
             source = config.base_path / "Artist - Title.flac"
             source.write_bytes(b"flac")
@@ -103,6 +109,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
         """A locally staged AIFF must not authorise deleting the last lossless copy."""
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
             config.ssd_archive_path.mkdir(parents=True)
             source = config.base_path / "Artist - Title.flac"
@@ -130,6 +137,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
         """The deferred path closes: SSD returns -> reconcile moves -> source cleaned up."""
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
             config.ssd_archive_path.mkdir(parents=True)
             source = config.base_path / "Artist - Title.flac"
@@ -182,6 +190,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
     def test_process_all_removes_legacy_copied_flac_when_final_aiff_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
             config.ssd_archive_path.mkdir(parents=True)
             source = config.base_path / "Artist - Title.flac"
@@ -209,6 +218,7 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
     def test_process_all_keeps_legacy_copied_flac_when_final_aiff_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False  # Mac-mini contract: archive then delete
             config.ssd_archive_path = Path(tmp) / "ssd" / "music"
             config.ssd_archive_path.mkdir(parents=True)
             source = config.base_path / "Artist - Title.flac"
@@ -258,6 +268,104 @@ class ProcessorFlacLifecycleTests(unittest.TestCase):
             processor.process_file(via_real)
             self.assertEqual(processor.stats["skipped"], 1)
             self.assertEqual(processor.stats["processed"], 0)
+
+
+class FlacRetentionPolicyTests(unittest.TestCase):
+    """The keep_flac_sources column: a machine with no archive drive.
+
+    Before this setting existed, retention was an accident of whether
+    ssd_archive_path happened to be set, and the "no SSD" configuration -
+    the correct one for the MacBook Air - deleted every lossless original.
+    """
+
+    def test_conversion_keeps_the_source_when_retention_is_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))  # keep_flac_sources defaults True
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+
+            processor = AudioProcessor(config)
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+            processor._process_bpm = lambda path, bpm: bpm
+            processor._convert_flac_to_aiff = lambda src, dst: dst.write_bytes(b"aiff") or True
+            processor.tag_handler.set_tags = lambda *args, **kwargs: None
+            processor.tag_handler.clear_extra_tags = lambda *args, **kwargs: None
+            processor.rekordbox_xml.register = lambda *args, **kwargs: None
+
+            processor.process_file(source)
+
+            self.assertTrue(source.exists(), "lossless source must survive conversion")
+            self.assertTrue((config.local_path / "Artist - Title.aiff").exists())
+            self.assertEqual(processor.stats["processed"], 1)
+            self.assertEqual(processor.stats["errors"], 0)
+
+    def test_sweep_keeps_an_already_processed_source_when_retention_is_on(self):
+        """The route that deletes with no conversion involved.
+
+        _cleanup_previously_processed_source fires for anything already in
+        copiedList whose output exists. With no SSD configured it treats the
+        local output as final, so every FLAC the service had ever converted
+        was deleted on the next sweep - no ffmpeg, no log line about it.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            self.assertIsNone(config.ssd_archive_path)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            (config.local_path / "Artist - Title.aiff").write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            stats = processor.process_all()
+
+            self.assertTrue(source.exists(), "sweep must not delete the last lossless copy")
+            self.assertEqual(stats["skipped"], 1)
+            self.assertEqual(stats["errors"], 0)
+
+    def test_sweep_deletes_an_already_processed_source_when_retention_is_off(self):
+        """The same path with retention off, so the gate is pinned both ways."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.keep_flac_sources = False
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            (config.local_path / "Artist - Title.aiff").write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            processor.process_all()
+
+            self.assertFalse(source.exists())
+
+    def test_retention_is_independent_of_ssd_configuration(self):
+        """An SSD that is merely unmounted must not change the retention answer."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = DummyConfig(Path(tmp))
+            config.ssd_archive_path = Path(tmp) / "ssd" / "music"
+            config.ssd_archive_path.mkdir(parents=True)
+            source = config.base_path / "Artist - Title.flac"
+            source.write_bytes(b"flac")
+            final = config.ssd_archive_path / "Artist - Title.aiff"
+            final.write_bytes(b"aiff")
+            (config.base_path / "copiedList.txt").write_text(f"{source}\n")
+
+            processor = AudioProcessor(config)
+            processor.ssd_archiver = SimpleNamespace(
+                configured=True,
+                archive_path=config.ssd_archive_path,
+                reconcile=lambda local_path: 0,
+            )
+            processor.tag_handler.get_tags = lambda path: ("Artist", "Title", 128)
+
+            processor.process_all()
+
+            # Output is safely on the SSD, but this machine keeps its sources.
+            self.assertTrue(final.exists())
+            self.assertTrue(source.exists())
 
 
 if __name__ == "__main__":

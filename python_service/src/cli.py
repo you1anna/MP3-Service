@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 from .config import Config, create_default_config
+from .diagnostics import machine_report
 from .logger import setup_logger
 from .processor import AudioProcessor
 
@@ -41,6 +42,41 @@ class CLI:
         print(f"2. Run: python main.py validate --config {output_path}")
         print(f"3. Run: python main.py test --config {output_path}")
         print(f"4. Run: python main.py start --config {output_path}")
+
+    SYMBOLS = {"ok": "\u2713", "info": "\u00b7", "warn": "\u26a0", "fail": "\u2717"}
+
+    def doctor(self, config_path: str) -> None:
+        """Report how this machine resolves the config, and what that implies.
+
+        The two hosts run the same code against deliberately different
+        config.json files, so this is what you run on each to see which
+        behaviour it has actually selected.
+        """
+        print(f"MP3 Service doctor - {config_path}")
+        print("")
+
+        try:
+            config = Config(config_path)
+        except FileNotFoundError:
+            print(f"\u2717 Configuration file not found: {config_path}")
+            return
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"\u2717 Configuration error: {e}")
+            return
+
+        findings = machine_report(config)
+        for level, message in findings:
+            print(f"  {self.SYMBOLS.get(level, ' ')} {message}")
+
+        print("")
+        failures = [m for level, m in findings if level == "fail"]
+        warnings = [m for level, m in findings if level == "warn"]
+        if failures:
+            print(f"\u2717 {len(failures)} problem(s) will stop this machine working correctly.")
+        elif warnings:
+            print(f"\u26a0 {len(warnings)} warning(s); the service will run.")
+        else:
+            print("\u2713 This machine is configured correctly.")
 
     def validate_config(self, config_path: str) -> None:
         """

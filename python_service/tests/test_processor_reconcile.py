@@ -20,6 +20,10 @@ class DummyConfig:
         self.backup_before_delete = False
         self.backup_path = None
         self.bpm_range = (65, 135)
+        # Mirrors the production default. Tests that pin the SSD gate or the
+        # Mac mini's delete-after-archive contract set this to False explicitly,
+        # so the stub can never drift from what Config actually defaults to.
+        self.keep_flac_sources = True
 
 
 class ProcessorReconcileTests(unittest.TestCase):
