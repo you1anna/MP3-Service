@@ -17,6 +17,10 @@ pip install -r requirements.txt
 cp config.example.json config.json   # then edit paths
 ```
 
+`python setup.py` is an interactive alternative. It writes a minimal config — the optional fields
+(`ssd_archive_path`, `rekordbox_xml_path`, `sweep_interval`, the `external_*` keys) are left out and
+fall back to their defaults; copy them from `config.example.json` if you need them.
+
 ## Run
 
 ```bash
@@ -45,7 +49,7 @@ Edit `config.json`. Paths support `~` and `$VARS`, so the same config shape work
 | `log_file` | optional; defaults to `mp3_service.log` beside `config.json` |
 | `ssd_archive_path` | optional external SSD destination; processed tracks are moved here when the volume is mounted. Must sit under `/Volumes/<drive>/…` so mount state can be checked |
 | `rekordbox_xml_path` | optional Rekordbox XML file to append processed tracks to |
-| `external_watch_path` | optional external drive root watched by `rekordbox_watch.py` |
+| `external_watch_path` | optional directory watched by `rekordbox_watch.py`. Point it at the track directory (i.e. `ssd_archive_path`), **not** the drive root — a drive that also holds a sample library will sweep tens of thousands of one-shots into Rekordbox |
 | `external_seen_file` | persistent list of external-drive files already scanned; defaults beside `config.json` |
 | `external_max_new_per_scan` | anti-flood cap; a scan finding more than this re-baselines instead of registering (default 200) |
 
