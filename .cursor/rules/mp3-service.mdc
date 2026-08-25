@@ -16,13 +16,20 @@ Read `CLAUDE.md` first for architecture, paths, and testing commands.
 - Venv: `python_service/.venv` (Python 3.12)
 - Config: `python_service/config.json` (local only, not in git)
 - launchd service: `com.macmini.mp3service`
-- FLAC→AIFF conversion: 16-bit/44.1kHz; FLAC originals kept until AIFF is confirmed in final destination
+- FLAC→AIFF conversion: 16-bit/44.1kHz
+- `keep_flac_sources` (default `true`) decides whether source FLACs are deleted after conversion —
+  deliberately independent of `ssd_archive_path`, since an unplugged drive must not change whether
+  lossless originals are destroyed
+- Runs on both the Mac mini and the MacBook Air. `config.json` is gitignored, so each carries its
+  own and `git pull` does not carry new keys across — run `main.py doctor` on a machine to see how
+  it resolves its config
 
 ## Testing
 
 ```sh
+python3 main.py doctor              # machine-resolved config report
 python3 main.py process --dry-run   # safe test
-python3 main.py test                # full test suite
+.venv/bin/python -m unittest discover -s tests   # full suite (unittest, not pytest)
 ```
 
 ## Service management

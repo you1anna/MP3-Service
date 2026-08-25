@@ -18,6 +18,8 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 - `src/rekordbox_xml.py` / `src/rekordbox_watcher.py` — Rekordbox XML feed and external-drive scanner
 - `src/config.py` — JSON config loader
 - `src/cli.py` — CLI argument parsing
+- `src/diagnostics.py` — machine-resolved config report (`doctor` + startup log)
+- `src/maintenance.py` — watch-mode self-healing (reconcile, remount rescan, periodic sweep)
 - `src/logger.py` — Logging setup
 - `health_check.py` — Service health check endpoint
 
@@ -45,7 +47,8 @@ Audio file processor for DJ workflow. Watches Soulseek downloads, processes to P
 ## Testing
 - `python3 main.py doctor` — machine-resolved config report
 - `python3 main.py process --dry-run` — safe test run
-- `python3 main.py test` — run test suite
+- `python3 main.py test` — preview which files would be processed (not the test suite)
+- `.venv/bin/python -m unittest discover -s tests` — the test suite (unittest; pytest is not installed)
 - Delete `copiedList.txt` to reprocess all files
 
 ## Service

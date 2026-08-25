@@ -21,6 +21,7 @@ cp config.example.json config.json   # then edit paths
 
 ```bash
 python main.py validate            # check config
+python main.py doctor              # how THIS machine resolves the config
 python main.py start --dry-run     # preview without touching files
 python main.py start --watch       # run with real-time file watcher
 python health_check.py             # diagnostics
@@ -28,21 +29,47 @@ python health_check.py             # diagnostics
 
 ## Configuration
 
-Edit `config.json`. Key fields:
+Edit `config.json`. Paths support `~` and `$VARS`, so the same config shape works on any machine.
 
 | field | meaning |
 |---|---|
 | `base_path` | source folder to watch |
 | `local_path` | destination for processed files |
+| `keep_flac_sources` | **default `true`.** Keep the source FLAC after its AIFF reaches its final destination. See below |
 | `supported_extensions` | audio types to process |
 | `bpm_range` | `{min, max}` — BPM detection bounds; not a processing filter |
 | `backup_before_delete` | `true` → move originals to `backup_path` instead of deleting |
 | `backup_path` | required if `backup_before_delete: true` |
 | `poll_interval` | seconds between scans in polling mode |
-| `ssd_archive_path` | optional external SSD destination; processed tracks are moved here when the volume is mounted |
+| `sweep_interval` | seconds between full source rescans in watch mode (default 900) |
+| `log_file` | optional; defaults to `mp3_service.log` beside `config.json` |
+| `ssd_archive_path` | optional external SSD destination; processed tracks are moved here when the volume is mounted. Must sit under `/Volumes/<drive>/…` so mount state can be checked |
 | `rekordbox_xml_path` | optional Rekordbox XML file to append processed tracks to |
 | `external_watch_path` | optional external drive root watched by `rekordbox_watch.py` |
-| `external_seen_file` | persistent list of external-drive files already scanned |
+| `external_seen_file` | persistent list of external-drive files already scanned; defaults beside `config.json` |
+| `external_max_new_per_scan` | anti-flood cap; a scan finding more than this re-baselines instead of registering (default 200) |
+
+## Two machines, two configs
+
+`config.json` is gitignored, so each machine carries its own and `git pull` does **not** carry new
+keys across. Run `python main.py doctor` on a machine to see how it resolves its config and what that
+implies — resolved paths, SSD mount state, FLAC retention, marker file, ffmpeg. The same report is
+written to the log at every service start, so a log tells you which branch that host took.
+
+|  | machine with an archive drive | machine without one |
+|---|---|---|
+| `ssd_archive_path` | set, drive attached | set but absent, or empty |
+| `keep_flac_sources` | `false` — the archive drive is the backstop | `true` — the source FLAC is the only lossless copy |
+| `local_path` role | staging, swept onto the drive | final destination |
+
+### `keep_flac_sources`
+
+This decides whether the service deletes your lossless originals, and it is deliberately
+**independent of `ssd_archive_path`**. A drive that is merely unplugged must never change the answer.
+
+Set it to `false` only on a machine whose archive path is a real archive drive — a 16-bit/44.1kHz
+AIFF is not a replacement for a 24-bit/96kHz FLAC. On any other machine leave it `true`, and the
+source folder keeps the lossless copy.
 
 ## External SSD and Rekordbox behavior
 
@@ -50,10 +77,10 @@ The audio pipeline and Rekordbox pipeline are separate:
 
 1. `main.py start --watch` processes Soulseek downloads.
    - MP3/M4A/WAV/AIFF files are cleaned and copied to `local_path`.
-   - FLAC files are converted to AIFF in `local_path`; the original FLAC is deleted only after the AIFF reaches its final destination.
-   - Legacy FLACs already listed in `copiedList.txt` are also cleaned up on startup when the matching AIFF exists in the configured final destination.
+   - FLAC files are converted to AIFF in `local_path`. With `keep_flac_sources: true` (the default) the original stays put; with `false` it is deleted once the AIFF reaches its final destination.
+   - Sources already listed in `copiedList.txt` are cleaned up when the matching output exists in the configured final destination. FLACs are exempt from this on a `keep_flac_sources` machine — that route deletes with no conversion involved, so it is gated separately.
    - If `ssd_archive_path` is configured and its `/Volumes/<drive>` mount is present, the processed output is moved from `local_path` to the SSD.
-   - If `ssd_archive_path` is configured but the AIFF does not reach that SSD destination, the temporary local AIFF is removed, the original FLAC stays in the Soulseek complete folder, and the file is not added to `copiedList.txt`.
+   - If the SSD is absent, the converted AIFF stays in `local_path` and the source is left alone. The output is never discarded: `src/maintenance.py` reconciles staging onto the drive when it reconnects, then the source is cleaned up (if retention is off). An unreachable drive is a deferral, not a failure.
    - For non-FLAC files, if the SSD is not mounted, the processed output remains in `local_path` so the audio pipeline does not fail.
 
 2. `rekordbox_watch.py` scans `external_watch_path` and appends new audio files to `rekordbox_xml_path`.
@@ -108,16 +135,26 @@ python_service/
 ├── config.json        # local config (gitignored)
 ├── config.example.json
 ├── requirements.txt
+├── rekordbox_watch.py # external-drive Rekordbox sync entry point
+├── tests/             # unittest suite (no pytest)
 └── src/
     ├── processor.py      # main pipeline + ffmpeg FLAC→AIFF
     ├── tag_handler.py    # mutagen read/write (MP3/AIFF/M4A/FLAC)
     ├── bpm_detector.py   # librosa tempo detection
     ├── file_handler.py   # copy/move/delete, filename cleaning
     ├── watcher.py        # watchdog real-time file events
+    ├── maintenance.py    # watch-mode self-healing: reconcile, remount rescan, sweep
     ├── ssd_archive.py    # optional move from local_path to external SSD
+    ├── diagnostics.py    # machine-resolved config report (doctor + startup log)
     ├── rekordbox_xml.py  # append processed tracks to Rekordbox XML
     ├── rekordbox_watcher.py # external-drive scanner for Rekordbox XML
     ├── config.py         # JSON config loader
-    ├── cli.py            # init/validate/test/status commands
+    ├── cli.py            # init/validate/test/status/doctor commands
     └── logger.py
+```
+
+## Tests
+
+```bash
+.venv/bin/python -m unittest discover -s tests
 ```

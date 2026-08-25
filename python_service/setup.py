@@ -135,8 +135,13 @@ def create_config_interactive():
     # BPM range
     config['bpm_range'] = {"min": 65, "max": 135}
 
-    # Logging
-    config['log_file'] = "mp3_service.log"
+    # FLAC retention. Written explicitly even though it matches the default:
+    # this is the setting that decides whether lossless originals are deleted,
+    # so a generated config should never leave it implicit.
+    config['keep_flac_sources'] = True
+
+    # Logging. Empty means "mp3_service.log beside config.json".
+    config['log_file'] = ""
 
     print("\n📊 Choose logging level:")
     print("   1. DEBUG (detailed, for troubleshooting)")
