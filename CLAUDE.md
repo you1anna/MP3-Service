@@ -1,4 +1,4 @@
-# MP3-Service
+# audio-service
 
 Audio file processor for DJ workflow. Watches Soulseek downloads, processes to Pioneer XDJ-compatible formats.
 

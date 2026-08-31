@@ -6,7 +6,7 @@ See `CLAUDE.md` for full architecture detail.
 
 ## Key facts
 
-- Canonical path: `/Users/macbookair/Dev/MP3-Service/python_service`
+- Canonical path: `/Users/macbookair/Dev/audio-service/python_service`
 - Stale duplicate at `~/MP3-Service` — ignore it
 - Venv: `python_service/.venv` (Python 3.12)
 - Config: `python_service/config.json` (local only, not in git)
